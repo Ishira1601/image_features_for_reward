@@ -1,0 +1,6 @@
+*.svo
+*.avi
+data/
+venv/
+__pycache__/
+.idea/
