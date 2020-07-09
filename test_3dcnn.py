@@ -170,38 +170,77 @@ def test():
     file_paths = get_file_paths(["data/csv"])
     # create images input
     m = 0
+    p = 1
     for file in file_paths:
-        if m == 4 :
-            plt.show()
-            plt.figure()
-            m = 0
+        # if m == 4 :
+        #     plt.show()
+        #     plt.figure()
+        #     m = 0
         time = file.split("/")[2].split(".")[0]
         j = 0
         frames = []
         depth = read_depth(time)
         the_csv = "data/csv/"+time+".csv"
         data = one_file(the_csv)
+
         while j<len(depth):
             window = []
+            plt.tight_layout(pad=0)
             for i in range(5):
                 k = j*5 + i
-                file_name = "data/"+time+"_"+str(k)+".png"
-                frame = cv2.imread(file_name)
-                frame = frame[:, 280:1000, :]
-                frame = cv2.resize(frame, (112, 112))
-                window.append(frame)
-            frames.append(window)
+                if k > 24:
+                    file_name = "data/"+time+"_"+str(k)+".png"
+                    frame = cv2.imread(file_name)
+                    frame = frame[:, 280:1000, :]
+                    frame = cv2.resize(frame, (112, 112))
+                    window.append(frame)
+                    if k % 20 == 0 and p < 225:
+                        frame_to_plot = cv2.resize(frame, (16, 16))
+                        plt.subplot(15, 15, p)
+                        plt.imshow(frame_to_plot)
+                        plt.tight_layout(pad=0)
+                        if p % 15 == 1:
+                            plt.ylabel(file.split('/')[2], rotation=0)
+                        plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+                        p += 1
+            if k > 24:
+                frames.append(window)
             j += 1
         frames = np.array((frames))
 
         im_feature, score = vis_model.predict(frames)
 
+        for s in range(im_feature.shape[1]):
+            im_feature[:, s] = (255*(im_feature[:, s] - min(im_feature[:, s])) / (max(im_feature[:, s]-min(im_feature[:, s]))))
+
+        im_feature = np.transpose(im_feature)
+
+        if p % 15 != 1:
+            r = (15 - (p % 15)) + 1
+            p += r
+
+        q = 0
+        while q < im_feature.shape[1] and p < 225 and k > 24:
+            if (q+4)<im_feature.shape[1]:
+                gray_frame = im_feature[:, q:q+4]
+            else:
+                gray_frame = im_feature[:, q:im_feature.shape[1]]
+            q += 4
+            plt.subplot(15, 15, p)
+            plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
+            plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+            p += 1
         # plot_some(im_feature, data, depth, m)
-
+        if p % 15 != 1:
+            r = 15 - (p % 15)+1
+            p += r
         # plot_all_image_features(im_feature, data, depth, time, m)
-        m += 1
 
-        plt.title(file)
-        plt.legend()
+        m += 1
         # plt.show()
+        # plt.title(file)
+        # plt.legend()
+
+
+    plt.show()
 test()
