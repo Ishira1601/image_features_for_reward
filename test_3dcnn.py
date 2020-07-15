@@ -9,6 +9,50 @@ from T3D_keras import densenet161_3D_DropOut, densenet121_3D_DropOut, xception_c
 from tensorflow.keras.optimizers import Adam
 import os
 
+import datetime
+import numpy as np
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
+import matplotlib.axes as ax
+
+# Create the PdfPages object to which we will save the pages:
+# The with statement makes sure that the PdfPages object is closed properly at
+# the end of the block, even if an Exception occurs.
+with PdfPages('multipage_pdf.pdf') as pdf:
+    plt.figure(figsize=(3, 3))
+    x = np.arange(0, 5, 0.1)
+    plt.plot(x, np.sin(x), 'b-')
+    plt.title('Page One')
+    pdf.savefig()  # saves the current figure into a pdf page
+    plt.close()
+
+    # if LaTeX is not installed or error caught, change to `usetex=False`
+    plt.rc('text', usetex=False)
+    plt.figure(figsize=(8, 6))
+    x = np.arange(0, 5, 0.1)
+    plt.plot(x, np.sin(x), 'b-')
+    plt.title('Page Two')
+    pdf.attach_note("plot of sin(x)")  # you can add a pdf note to
+                                       # attach metadata to a page
+    pdf.savefig()
+    plt.close()
+
+    plt.rc('text', usetex=False)
+    fig = plt.figure(figsize=(4, 5))
+    plt.plot(x, x ** 2, 'ko')
+    plt.title('Page Three')
+    pdf.savefig(fig)  # or you can pass a Figure object to pdf.savefig
+    plt.close()
+
+    # We can also set the file's metadata via the PdfPages object:
+    d = pdf.infodict()
+    d['Title'] = 'Multipage PDF Example'
+    d['Author'] = 'Jouni K. Sepp\xe4nen'
+    d['Subject'] = 'How to create a multipage pdf file and set its metadata'
+    d['Keywords'] = 'PdfPages multipage keywords author title subject'
+    d['CreationDate'] = datetime.datetime(2009, 11, 13)
+    d['ModDate'] = datetime.datetime.today()
+
 def get_file_paths(folders):
     from os import listdir
     from os.path import isfile, join
@@ -159,8 +203,9 @@ def test():
     file_paths = get_file_paths(["data/csv"])
     # create images input
     m = 0
-    p = 1
+
     for file in file_paths:
+        p = 1
         # if m == 4 :
         #     plt.show()
         #     plt.figure()
@@ -172,6 +217,7 @@ def test():
         the_csv = "data/csv/"+time+".csv"
         data = one_file(the_csv)
         frame = 0
+        plt.figure()
         while j<len(depth):
             window = []
             # plt.tight_layout(pad=0)
@@ -183,10 +229,9 @@ def test():
                     frame = frame[:, 280:1000, :]
                     frame = cv2.resize(frame, (112, 112))
                     window.append(frame)
-                    if k % 20 == 0 and p < 225:
-                        frame_to_plot = cv2.resize(frame, (16, 16))
-                        plt.subplot(15, 15, p)
-                        plt.imshow(frame_to_plot)
+                    if k % 20 == 0 and p < 16:
+                        plt.subplot(3, 15, p)
+                        plt.imshow(frame)
                         # plt.tight_layout(pad=0)
                         if p % 15 == 1:
                             plt.ylabel(file.split('/')[2], rotation=0)
@@ -195,10 +240,9 @@ def test():
             if k > 24:
                 frames.append(window)
             j += 1
-        if p<225:
-            frame_to_plot = cv2.resize(frame, (16, 16))
-            plt.subplot(15, 15, p)
-            plt.imshow(frame_to_plot)
+        if p < 16:
+            plt.subplot(3, 15, p)
+            plt.imshow(frame)
             plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
             p += 1
 
@@ -211,37 +255,32 @@ def test():
 
         # im_feature = np.transpose(im_feature)
 
-        if p % 15 != 1:
-            r = (15 - (p % 15)) + 1
-            p += r
+        p = 16
 
         q = 0
-        while q < im_feature.shape[0] and p < 225:
+        while q < im_feature.shape[0] and p < 31:
             gray_frame = im_feature[q, :].reshape((1, 8))
             q += 4
-            plt.subplot(15, 15, p)
+            plt.subplot(3, 15, p)
             plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
             plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
             p += 1
-        # plot_some(im_feature, data, depth, m)
-        # if p % 15 != 1:
-        #     r = 15 - (p % 15)+1
-        #     p += r
-        # # plot_all_image_features(im_feature, data, depth, time, m)
-        # t = 20
-        # while t<(data.shape[0]) and p < 225:
-        #     frame_data = data[t-20:t, :]
-        #     plt.subplot(15, 15, p)
-        #     for u in range(data.shape[1]):
-        #         frame_data[:, u] = frame_data[:, u]/max(abs(data[:, u]))
-        #         plt.plot(frame_data[u])
-        #     # plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-        #     t += 20
-        #     p += 1
 
-        if p % 15 != 1:
-            r = 15 - (p % 15)+1
-            p += r
+        p = 31
+        # # plot_all_image_features(im_feature, data, depth, time, m)
+        t = 20
+        while t<(data.shape[0]) and p < 46:
+            frame_data = data[t-20:t, :]
+            plt.subplot(3, 15, p)
+            for u in range(data.shape[1]):
+                frame_data[:, u] = frame_data[:, u]/max(abs(data[:, u]))
+                plt.axis([0, 20, -1, 1])
+                plt.plot(frame_data[:, u])
+
+            plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+            t += 20
+            p += 1
+
         m += 1
         # plt.show()
         # plt.title(file)
