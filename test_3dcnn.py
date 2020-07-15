@@ -99,20 +99,9 @@ def one_file(file):
                 work_done += abs(np.dot(F_C, v_C))/15
                 workdone_x += abs(F_C[0] * v_C[0])/15
                 workdone_y += abs(F_C[1] * v_C[1])/15
-                work_done_sum += work_done
-                boom_sum += boom
-                bucket_sum += bucket
-                j += 1
-                if j == 5:
-                    work_done_sum /= 5
-                    boom_sum /= 5
-                    bucket_sum /= 5
-                    observation = [work_done_sum, boom_sum, bucket_sum]
-                    demonstrations.append(observation)
-                    work_done_sum = 0
-                    boom_sum = 0
-                    bucket_sum = 0
-                    j = 0
+
+                observation = [work_done, boom, bucket]
+                demonstrations.append(observation)
                 i += 1
 
     data = np.array(demonstrations)
@@ -182,10 +171,10 @@ def test():
         depth = read_depth(time)
         the_csv = "data/csv/"+time+".csv"
         data = one_file(the_csv)
-
+        frame = 0
         while j<len(depth):
             window = []
-            plt.tight_layout(pad=0)
+            # plt.tight_layout(pad=0)
             for i in range(5):
                 k = j*5 + i
                 if k > 24:
@@ -198,7 +187,7 @@ def test():
                         frame_to_plot = cv2.resize(frame, (16, 16))
                         plt.subplot(15, 15, p)
                         plt.imshow(frame_to_plot)
-                        plt.tight_layout(pad=0)
+                        # plt.tight_layout(pad=0)
                         if p % 15 == 1:
                             plt.ylabel(file.split('/')[2], rotation=0)
                         plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
@@ -206,6 +195,13 @@ def test():
             if k > 24:
                 frames.append(window)
             j += 1
+        if p<225:
+            frame_to_plot = cv2.resize(frame, (16, 16))
+            plt.subplot(15, 15, p)
+            plt.imshow(frame_to_plot)
+            plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+            p += 1
+
         frames = np.array((frames))
 
         im_feature, score = vis_model.predict(frames)
@@ -213,29 +209,39 @@ def test():
         for s in range(im_feature.shape[1]):
             im_feature[:, s] = (255*(im_feature[:, s] - min(im_feature[:, s])) / (max(im_feature[:, s]-min(im_feature[:, s]))))
 
-        im_feature = np.transpose(im_feature)
+        # im_feature = np.transpose(im_feature)
 
         if p % 15 != 1:
             r = (15 - (p % 15)) + 1
             p += r
 
         q = 0
-        while q < im_feature.shape[1] and p < 225 and k > 24:
-            if (q+4)<im_feature.shape[1]:
-                gray_frame = im_feature[:, q:q+4]
-            else:
-                gray_frame = im_feature[:, q:im_feature.shape[1]]
+        while q < im_feature.shape[0] and p < 225:
+            gray_frame = im_feature[q, :].reshape((1, 8))
             q += 4
             plt.subplot(15, 15, p)
             plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
             plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
             p += 1
         # plot_some(im_feature, data, depth, m)
+        # if p % 15 != 1:
+        #     r = 15 - (p % 15)+1
+        #     p += r
+        # # plot_all_image_features(im_feature, data, depth, time, m)
+        # t = 20
+        # while t<(data.shape[0]) and p < 225:
+        #     frame_data = data[t-20:t, :]
+        #     plt.subplot(15, 15, p)
+        #     for u in range(data.shape[1]):
+        #         frame_data[:, u] = frame_data[:, u]/max(abs(data[:, u]))
+        #         plt.plot(frame_data[u])
+        #     # plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+        #     t += 20
+        #     p += 1
+
         if p % 15 != 1:
             r = 15 - (p % 15)+1
             p += r
-        # plot_all_image_features(im_feature, data, depth, time, m)
-
         m += 1
         # plt.show()
         # plt.title(file)
