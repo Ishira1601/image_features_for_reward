@@ -18,40 +18,40 @@ import matplotlib.axes as ax
 # Create the PdfPages object to which we will save the pages:
 # The with statement makes sure that the PdfPages object is closed properly at
 # the end of the block, even if an Exception occurs.
-with PdfPages('multipage_pdf.pdf') as pdf:
-    plt.figure(figsize=(3, 3))
-    x = np.arange(0, 5, 0.1)
-    plt.plot(x, np.sin(x), 'b-')
-    plt.title('Page One')
-    pdf.savefig()  # saves the current figure into a pdf page
-    plt.close()
-
-    # if LaTeX is not installed or error caught, change to `usetex=False`
-    plt.rc('text', usetex=False)
-    plt.figure(figsize=(8, 6))
-    x = np.arange(0, 5, 0.1)
-    plt.plot(x, np.sin(x), 'b-')
-    plt.title('Page Two')
-    pdf.attach_note("plot of sin(x)")  # you can add a pdf note to
-                                       # attach metadata to a page
-    pdf.savefig()
-    plt.close()
-
-    plt.rc('text', usetex=False)
-    fig = plt.figure(figsize=(4, 5))
-    plt.plot(x, x ** 2, 'ko')
-    plt.title('Page Three')
-    pdf.savefig(fig)  # or you can pass a Figure object to pdf.savefig
-    plt.close()
-
-    # We can also set the file's metadata via the PdfPages object:
-    d = pdf.infodict()
-    d['Title'] = 'Multipage PDF Example'
-    d['Author'] = 'Jouni K. Sepp\xe4nen'
-    d['Subject'] = 'How to create a multipage pdf file and set its metadata'
-    d['Keywords'] = 'PdfPages multipage keywords author title subject'
-    d['CreationDate'] = datetime.datetime(2009, 11, 13)
-    d['ModDate'] = datetime.datetime.today()
+# with PdfPages('multipage_pdf.pdf') as pdf:
+#     plt.figure(figsize=(3, 3))
+#     x = np.arange(0, 5, 0.1)
+#     plt.plot(x, np.sin(x), 'b-')
+#     plt.title('Page One')
+#     pdf.savefig()  # saves the current figure into a pdf page
+#     plt.close()
+#
+#     # if LaTeX is not installed or error caught, change to `usetex=False`
+#     plt.rc('text', usetex=False)
+#     plt.figure(figsize=(8, 6))
+#     x = np.arange(0, 5, 0.1)
+#     plt.plot(x, np.sin(x), 'b-')
+#     plt.title('Page Two')
+#     pdf.attach_note("plot of sin(x)")  # you can add a pdf note to
+#                                        # attach metadata to a page
+#     pdf.savefig()
+#     plt.close()
+#
+#     plt.rc('text', usetex=False)
+#     fig = plt.figure(figsize=(4, 5))
+#     plt.plot(x, x ** 2, 'ko')
+#     plt.title('Page Three')
+#     pdf.savefig(fig)  # or you can pass a Figure object to pdf.savefig
+#     plt.close()
+#
+#     # We can also set the file's metadata via the PdfPages object:
+#     d = pdf.infodict()
+#     d['Title'] = 'Multipage PDF Example'
+#     d['Author'] = 'Jouni K. Sepp\xe4nen'
+#     d['Subject'] = 'How to create a multipage pdf file and set its metadata'
+#     d['Keywords'] = 'PdfPages multipage keywords author title subject'
+#     d['CreationDate'] = datetime.datetime(2009, 11, 13)
+#     d['ModDate'] = datetime.datetime.today()
 
 def get_file_paths(folders):
     from os import listdir
@@ -201,91 +201,93 @@ def test():
     vis_model = get_visual_model()
 
     file_paths = get_file_paths(["data/csv"])
+    labels = ["Workdone", "Boom", "Bucket"]
     # create images input
     m = 0
+    with PdfPages('data_plots.pdf') as pdf:
+        for file in file_paths:
+            p = 1
+            # if m == 4 :
+            #     plt.show()
+            #     plt.figure()
+            #     m = 0
+            time = file.split("/")[2].split(".")[0]
+            j = 0
+            frames = []
+            depth = read_depth(time)
+            the_csv = "data/csv/"+time+".csv"
+            data = one_file(the_csv)
+            frame = 0
+            plt.rc('text', usetex=False)
+            fig = plt.figure(figsize=(15, 3))
+            plt.title(file.split('/')[2])
+            while j < len(depth):
+                window = []
+                # plt.tight_layout(pad=0)
+                for i in range(5):
+                    k = j*5 + i
+                    if k > 24:
+                        file_name = "data/"+time+"_"+str(k)+".png"
+                        frame = cv2.imread(file_name)
+                        frame = frame[:, 280:1000, :]
+                        frame = cv2.resize(frame, (112, 112))
+                        window.append(frame)
+                        if k % 20 == 0 and p < 16:
+                            plt.subplot(3, 15, p)
+                            plt.imshow(frame)
 
-    for file in file_paths:
-        p = 1
-        # if m == 4 :
-        #     plt.show()
-        #     plt.figure()
-        #     m = 0
-        time = file.split("/")[2].split(".")[0]
-        j = 0
-        frames = []
-        depth = read_depth(time)
-        the_csv = "data/csv/"+time+".csv"
-        data = one_file(the_csv)
-        frame = 0
-        plt.figure()
-        while j<len(depth):
-            window = []
-            # plt.tight_layout(pad=0)
-            for i in range(5):
-                k = j*5 + i
+                            plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+                            p += 1
                 if k > 24:
-                    file_name = "data/"+time+"_"+str(k)+".png"
-                    frame = cv2.imread(file_name)
-                    frame = frame[:, 280:1000, :]
-                    frame = cv2.resize(frame, (112, 112))
-                    window.append(frame)
-                    if k % 20 == 0 and p < 16:
-                        plt.subplot(3, 15, p)
-                        plt.imshow(frame)
-                        # plt.tight_layout(pad=0)
-                        if p % 15 == 1:
-                            plt.ylabel(file.split('/')[2], rotation=0)
-                        plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-                        p += 1
-            if k > 24:
-                frames.append(window)
-            j += 1
-        if p < 16:
-            plt.subplot(3, 15, p)
-            plt.imshow(frame)
-            plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-            p += 1
+                    frames.append(window)
+                j += 1
+            if p < 16:
+                plt.subplot(3, 15, p)
+                plt.imshow(frame)
+                plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+                p += 1
 
-        frames = np.array((frames))
+            frames = np.array((frames))
 
-        im_feature, score = vis_model.predict(frames)
+            im_feature, score = vis_model.predict(frames)
 
-        for s in range(im_feature.shape[1]):
-            im_feature[:, s] = (255*(im_feature[:, s] - min(im_feature[:, s])) / (max(im_feature[:, s]-min(im_feature[:, s]))))
+            for s in range(im_feature.shape[1]):
+                im_feature[:, s] = (255*(im_feature[:, s] - min(im_feature[:, s])) / (max(im_feature[:, s]-min(im_feature[:, s]))))
 
-        # im_feature = np.transpose(im_feature)
+            # im_feature = np.transpose(im_feature)
 
-        p = 16
+            p = 16
 
-        q = 0
-        while q < im_feature.shape[0] and p < 31:
-            gray_frame = im_feature[q, :].reshape((1, 8))
-            q += 4
-            plt.subplot(3, 15, p)
-            plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
-            plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-            p += 1
+            q = 0
+            while q < im_feature.shape[0] and p < 31:
+                gray_frame = im_feature[q, :].reshape((1, 8))
+                q += 4
+                plt.subplot(3, 15, p)
+                plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
+                plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+                p += 1
 
-        p = 31
-        # # plot_all_image_features(im_feature, data, depth, time, m)
-        t = 20
-        while t<(data.shape[0]) and p < 46:
-            frame_data = data[t-20:t, :]
-            plt.subplot(3, 15, p)
-            for u in range(data.shape[1]):
-                frame_data[:, u] = frame_data[:, u]/max(abs(data[:, u]))
-                plt.axis([0, 20, -1, 1])
-                plt.plot(frame_data[:, u])
+            p = 31
+            # # plot_all_image_features(im_feature, data, depth, time, m)
+            t = 20
+            while t<(data.shape[0]) and p < 46:
+                frame_data = data[t-20:t, :]
+                plt.subplot(3, 15, p)
+                for u in range(data.shape[1]):
+                    frame_data[:, u] = frame_data[:, u]/max(abs(data[:, u]))
+                    plt.axis([0, 20, -1, 1])
+                    plt.plot(frame_data[:, u], label=labels[u])
 
-            plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-            t += 20
-            p += 1
+                plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+                t += 20
 
-        m += 1
-        # plt.show()
-        # plt.title(file)
-        # plt.legend()
+                p += 1
 
+            m += 1
+            plt.legend()
+            pdf.savefig(fig)
+            plt.close()
 
-    plt.show()
+    # plt.show()
+
 test()
