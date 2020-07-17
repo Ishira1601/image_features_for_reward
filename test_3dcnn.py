@@ -85,8 +85,8 @@ def get_visual_model():
 
     return model
 
-def read_depth(time):
-    folder = 'data/depth/'
+def read_depth(file, time):
+    folder = file.split('/')[0] + '/' + file.split('/')[1] + '_depth/'
     depth_file = folder + time + ".svo-depth.txt"
     f = open(depth_file, "r")
     i = 0
@@ -97,16 +97,11 @@ def read_depth(time):
         x = x.split()
         if x[0] != '#' and len(x) == 30:
             if i > 5:
-                summed += float(x[17])
-                j += 1
-                if j == 5:
-                    summed /= 5
-                    depth.append(summed)
-                    j = 0
+                depth.append(float(x[17]))
             i += 1
     return depth
 
-def one_file(file):
+def one_file(file, time):
     i = 0
     work_done = 0
     workdone_x = 0
@@ -116,22 +111,30 @@ def one_file(file):
     a = 0.0016
     prev_boom = 0
     F0 = 0
-    j = 0
-    work_done_sum = 0
-    boom_sum = 0
-    bucket_sum = 0
-
+    depth = read_depth(file, time)
+    season = file.split("/")[1]
     with open(file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         demonstrations = []
-        # distance_travelled = upr.get_distance_travelled(file)
+
         for row in csv_reader:
-                P_A = float(row[28])*100000
-                P_B = float(row[27])*100000
-                boom = float(row[71])
-                bucket = float(row[72])
-                vx = float(row[62])
-                l = float(row[21])
+            if (len(depth)>i):
+                if season == "autumn" or season == "winter":
+                    P_A = float(row[28])*100000
+                    P_B = float(row[27])*100000
+                    boom = float(row[71])
+                    bucket = float(row[72])
+                    vx = float(row[62])
+                    l = float(row[21])
+                if season == "summer":
+                    P_A = float(row[9]) * 100000
+                    P_B = float(row[8]) * 100000
+                    boom = float(row[1])
+                    bucket = float(row[2])
+                    vx = (depth[i] - prev_depth) * 15
+                    prev_depth = depth[i]
+                    l = float(row[3])
+
                 F = a_A*P_A-a_B*P_B
                 if i == 0:
                     F0 = F
@@ -144,7 +147,7 @@ def one_file(file):
                 workdone_x += abs(F_C[0] * v_C[0])/15
                 workdone_y += abs(F_C[1] * v_C[1])/15
 
-                observation = [work_done, boom, bucket]
+                observation = [depth[i], boom, bucket]
                 demonstrations.append(observation)
                 i += 1
 
@@ -200,8 +203,8 @@ def test():
     # init 3dcnn extraction model    
     vis_model = get_visual_model()
 
-    file_paths = get_file_paths(["data/csv"])
-    labels = ["Workdone", "Boom", "Bucket"]
+    file_paths = get_file_paths(["data/winter"])
+    labels = ["Distance", "Boom", "Bucket"]
     # create images input
     m = 0
     with PdfPages('data_plots.pdf') as pdf:
@@ -213,20 +216,19 @@ def test():
             #     m = 0
             time = file.split("/")[2].split(".")[0]
             j = 0
+            k = 0
             frames = []
-            depth = read_depth(time)
-            the_csv = "data/csv/"+time+".csv"
-            data = one_file(the_csv)
+            data = one_file(file, time)
             frame = 0
             plt.rc('text', usetex=False)
-            fig = plt.figure(figsize=(15, 3))
+            plt.figure(figsize=(30, 6))
             plt.title(file.split('/')[2])
-            while j < len(depth):
+            while k < (data.shape[0]):
                 window = []
                 # plt.tight_layout(pad=0)
                 for i in range(5):
                     k = j*5 + i
-                    if k > 24:
+                    if k > 24 and k < (data.shape[0]):
                         file_name = "data/"+time+"_"+str(k)+".png"
                         frame = cv2.imread(file_name)
                         frame = frame[:, 280:1000, :]
@@ -238,7 +240,7 @@ def test():
 
                             plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
                             p += 1
-                if k > 24:
+                if k > 24 and k < (data.shape[0]):
                     frames.append(window)
                 j += 1
             if p < 16:
@@ -274,9 +276,14 @@ def test():
                 frame_data = data[t-20:t, :]
                 plt.subplot(3, 15, p)
                 for u in range(data.shape[1]):
-                    frame_data[:, u] = frame_data[:, u]/max(abs(data[:, u]))
-                    plt.axis([0, 20, -1, 1])
-                    plt.plot(frame_data[:, u], label=labels[u])
+                    the_min = min(data[:, u])
+                    the_max = max(data[:, u])
+                    data_to_plot = (frame_data[:, u]-the_min)/(the_max-the_min)
+                    plt.axis([0, 20, 0, 1])
+                    plt.plot(data_to_plot, label=labels[u])
+
+                if p==31:
+                    plt.ylabel(time)
 
                 plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
                 t += 20
@@ -285,7 +292,8 @@ def test():
 
             m += 1
             plt.legend()
-            pdf.savefig(fig)
+            plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+            pdf.savefig(bbox_inches='tight')
             plt.close()
 
     # plt.show()
