@@ -203,7 +203,7 @@ def test():
     # init 3dcnn extraction model    
     vis_model = get_visual_model()
 
-    file_paths = get_file_paths(["data/winter"])
+    file_paths = get_file_paths(["data/winter", "data/autumn"])
     labels = ["Distance", "Boom", "Bucket"]
     # create images input
     m = 0
@@ -231,19 +231,22 @@ def test():
                     if k > 24 and k < (data.shape[0]):
                         file_name = "data/"+time+"_"+str(k)+".png"
                         frame = cv2.imread(file_name)
+                        if type(frame)==type(None):
+                            break
                         frame = frame[:, 280:1000, :]
                         frame = cv2.resize(frame, (112, 112))
                         window.append(frame)
                         if k % 20 == 0 and p < 16:
                             plt.subplot(3, 15, p)
                             plt.imshow(frame)
-
                             plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+                            if p == 1:
+                                plt.ylabel(time)
                             p += 1
-                if k > 24 and k < (data.shape[0]):
+                if k > 24 and k < (data.shape[0]) and type(frame)!=type(None):
                     frames.append(window)
                 j += 1
-            if p < 16:
+            if p < 16 and type(frame)!=type(None):
                 plt.subplot(3, 15, p)
                 plt.imshow(frame)
                 plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
@@ -267,6 +270,8 @@ def test():
                 plt.subplot(3, 15, p)
                 plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
                 plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+                if p==16:
+                    plt.ylabel(time)
                 p += 1
 
             p = 31
