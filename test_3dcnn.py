@@ -199,6 +199,14 @@ def plot_some(im_feature, data, depth, m):
     # depth = depth / max(abs(depth))
     # plt.plot(depth, label="di")
 
+def example_plot(ax, fontsize=12):
+    ax.plot([1, 2])
+
+    ax.locator_params(nbins=3)
+    ax.set_xlabel('x-label', fontsize=fontsize)
+    ax.set_ylabel('y-label', fontsize=fontsize)
+    ax.set_title('Title', fontsize=fontsize)
+
 def test():
     # init 3dcnn extraction model    
     vis_model = get_visual_model()
@@ -207,9 +215,10 @@ def test():
     labels = ["Distance", "Boom", "Bucket"]
     # create images input
     m = 0
+    n = len((file_paths))
     with PdfPages('data_plots.pdf') as pdf:
         for file in file_paths:
-            p = 1
+            p = 0
             # if m == 4 :
             #     plt.show()
             #     plt.figure()
@@ -218,14 +227,14 @@ def test():
             j = 0
             k = 0
             frames = []
+            axs = []
             data = one_file(file, time)
             frame = 0
             plt.rc('text', usetex=False)
-            plt.figure(figsize=(30, 6))
+            fig = plt.figure(figsize=(30, 6))
             plt.title(file.split('/')[2])
             while k < (data.shape[0]):
                 window = []
-                # plt.tight_layout(pad=0)
                 for i in range(5):
                     k = j*5 + i
                     if k > 24 and k < (data.shape[0]):
@@ -236,18 +245,19 @@ def test():
                         frame = frame[:, 280:1000, :]
                         frame = cv2.resize(frame, (112, 112))
                         window.append(frame)
-                        if k % 20 == 0 and p < 16:
-                            plt.subplot(3, 15, p)
+                        if k % 20 == 0 and p < 15:
+                            plt.subplot2grid((3, 15), (0, p))
                             plt.imshow(frame)
                             plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-                            if p == 1:
+                            plt.title(time, color="w")
+                            if p == 0:
                                 plt.ylabel(time)
                             p += 1
                 if k > 24 and k < (data.shape[0]) and type(frame)!=type(None):
                     frames.append(window)
                 j += 1
-            if p < 16 and type(frame)!=type(None):
-                plt.subplot(3, 15, p)
+            if p < 15 and type(frame)!=type(None):
+                plt.subplot2grid((3, 15), (0, p))
                 plt.imshow(frame)
                 plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
                 p += 1
@@ -261,44 +271,35 @@ def test():
 
             # im_feature = np.transpose(im_feature)
 
-            p = 16
+            p = 0
 
             q = 0
-            while q < im_feature.shape[0] and p < 31:
+            while q < im_feature.shape[0] and p < 15:
                 gray_frame = im_feature[q, :].reshape((1, 8))
                 q += 4
-                plt.subplot(3, 15, p)
+                plt.subplot2grid((3, 15), (1, p))
                 plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
                 plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-                if p==16:
+                if p==0:
                     plt.ylabel(time)
                 p += 1
 
-            p = 31
             # # plot_all_image_features(im_feature, data, depth, time, m)
-            t = 20
-            while t<(data.shape[0]) and p < 46:
-                frame_data = data[t-20:t, :]
-                plt.subplot(3, 15, p)
-                for u in range(data.shape[1]):
-                    the_min = min(data[:, u])
-                    the_max = max(data[:, u])
-                    data_to_plot = (frame_data[:, u]-the_min)/(the_max-the_min)
-                    plt.axis([0, 20, 0, 1])
-                    plt.plot(data_to_plot, label=labels[u])
+            plt.subplot2grid((3, 15), (2, 0), colspan=p)
+            for u in range(data.shape[1]):
+                the_min = min(data[:, u])
+                the_max = max(data[:, u])
+                data_to_plot = (data[:, u]-the_min)/(the_max-the_min)
+                plt.plot(data_to_plot, label=labels[u])
 
-                if p==31:
+                if p==0:
                     plt.ylabel(time)
-
-                plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-                t += 20
-
-                p += 1
 
             m += 1
             plt.legend()
-            plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
-            pdf.savefig(bbox_inches='tight')
+            plt.tight_layout()
+            fig.suptitle(time, fontsize=16, x=0.2)
+            pdf.savefig(fig, bbox_inches='tight')
             plt.close()
 
     # plt.show()
