@@ -15,43 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import matplotlib.axes as ax
 
-# Create the PdfPages object to which we will save the pages:
-# The with statement makes sure that the PdfPages object is closed properly at
-# the end of the block, even if an Exception occurs.
-# with PdfPages('multipage_pdf.pdf') as pdf:
-#     plt.figure(figsize=(3, 3))
-#     x = np.arange(0, 5, 0.1)
-#     plt.plot(x, np.sin(x), 'b-')
-#     plt.title('Page One')
-#     pdf.savefig()  # saves the current figure into a pdf page
-#     plt.close()
-#
-#     # if LaTeX is not installed or error caught, change to `usetex=False`
-#     plt.rc('text', usetex=False)
-#     plt.figure(figsize=(8, 6))
-#     x = np.arange(0, 5, 0.1)
-#     plt.plot(x, np.sin(x), 'b-')
-#     plt.title('Page Two')
-#     pdf.attach_note("plot of sin(x)")  # you can add a pdf note to
-#                                        # attach metadata to a page
-#     pdf.savefig()
-#     plt.close()
-#
-#     plt.rc('text', usetex=False)
-#     fig = plt.figure(figsize=(4, 5))
-#     plt.plot(x, x ** 2, 'ko')
-#     plt.title('Page Three')
-#     pdf.savefig(fig)  # or you can pass a Figure object to pdf.savefig
-#     plt.close()
-#
-#     # We can also set the file's metadata via the PdfPages object:
-#     d = pdf.infodict()
-#     d['Title'] = 'Multipage PDF Example'
-#     d['Author'] = 'Jouni K. Sepp\xe4nen'
-#     d['Subject'] = 'How to create a multipage pdf file and set its metadata'
-#     d['Keywords'] = 'PdfPages multipage keywords author title subject'
-#     d['CreationDate'] = datetime.datetime(2009, 11, 13)
-#     d['ModDate'] = datetime.datetime.today()
+from upr import UPR
 
 def get_file_paths(folders):
     from os import listdir
@@ -120,6 +84,7 @@ def one_file(file, time):
         for row in csv_reader:
             if (len(depth)>i):
                 if season == "autumn" or season == "winter":
+                    transmission = float(row[32])*100000
                     P_A = float(row[28])*100000
                     P_B = float(row[27])*100000
                     boom = float(row[71])
@@ -147,7 +112,7 @@ def one_file(file, time):
                 workdone_x += abs(F_C[0] * v_C[0])/15
                 workdone_y += abs(F_C[1] * v_C[1])/15
 
-                observation = [depth[i], boom, bucket]
+                observation = [transmission, P_A, depth[i], boom, bucket]
                 demonstrations.append(observation)
                 i += 1
 
@@ -199,106 +164,111 @@ def plot_some(im_feature, data, depth, m):
     # depth = depth / max(abs(depth))
     # plt.plot(depth, label="di")
 
-def example_plot(ax, fontsize=12):
-    ax.plot([1, 2])
+def show_images_and_get_frames(n, time):
+    p = 0
+    j = 0
+    k = 0
+    frames = []
 
-    ax.locator_params(nbins=3)
-    ax.set_xlabel('x-label', fontsize=fontsize)
-    ax.set_ylabel('y-label', fontsize=fontsize)
-    ax.set_title('Title', fontsize=fontsize)
+    frame = 0
+    while k < (n):
+        window = []
+        for i in range(5):
+            k = j * 5 + i
+            if k > 24 and k < (n):
+                file_name = "data/" + time + "_" + str(k) + ".png"
+                frame = cv2.imread(file_name)
+                if type(frame) == type(None):
+                    break
+                frame = frame[:, 280:1000, :]
+                frame = cv2.resize(frame, (112, 112))
+                window.append(frame)
+                if k % 20 == 0 and p < 15:
+                    plt.subplot2grid((3, 15), (0, p))
+                    plt.imshow(frame)
+                    plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+                    plt.title(time, color="w")
+                    if p == 0:
+                        plt.ylabel(time)
+                    p += 1
+        if k > 24 and k < (n) and type(frame) != type(None):
+            frames.append(window)
+        j += 1
+    if p < 15 and type(frame) != type(None):
+        plt.subplot2grid((3, 15), (0, p))
+        plt.imshow(frame)
+        plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+        p += 1
+
+    frames = np.array((frames))
+    return frames
+
+def plot_image_vector(im_feature, time):
+
+
+    for s in range(im_feature.shape[1]):
+        im_feature[:, s] = (
+                    255 * (im_feature[:, s] - min(im_feature[:, s])) / (max(im_feature[:, s] - min(im_feature[:, s]))))
+
+    # im_feature = np.transpose(im_feature)
+
+    p = 0
+
+    q = 0
+    while q < im_feature.shape[0] and p < 15:
+        gray_frame = im_feature[q, :].reshape((8, 1))
+        q += 4
+        plt.subplot2grid((3, 15), (1, p))
+        plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
+        plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+        if p == 0:
+            plt.ylabel(time)
+        p += 1
+    return p
+
+def plot_data(data, labels, time, p):
+    plt.subplot2grid((3, 15), (2, 0), colspan=p)
+    for u in range(data.shape[1]):
+        the_min = min(data[:, u])
+        the_max = max(data[:, u])
+        data_to_plot = (data[:, u] - the_min) / (the_max - the_min)
+        plt.plot(data_to_plot, label=labels[u])
+
+        if p == 0:
+            plt.ylabel(time)
 
 def test():
     # init 3dcnn extraction model    
     vis_model = get_visual_model()
 
     file_paths = get_file_paths(["data/winter", "data/autumn"])
-    labels = ["Distance", "Boom", "Bucket"]
+    labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
     # create images input
     m = 0
-    n = len((file_paths))
+
     with PdfPages('data_plots.pdf') as pdf:
         for file in file_paths:
-            p = 0
-            # if m == 4 :
-            #     plt.show()
-            #     plt.figure()
-            #     m = 0
-            time = file.split("/")[2].split(".")[0]
-            j = 0
-            k = 0
-            frames = []
-            axs = []
-            data = one_file(file, time)
-            frame = 0
+
             plt.rc('text', usetex=False)
             fig = plt.figure(figsize=(30, 6))
             plt.title(file.split('/')[2])
-            while k < (data.shape[0]):
-                window = []
-                for i in range(5):
-                    k = j*5 + i
-                    if k > 24 and k < (data.shape[0]):
-                        file_name = "data/"+time+"_"+str(k)+".png"
-                        frame = cv2.imread(file_name)
-                        if type(frame)==type(None):
-                            break
-                        frame = frame[:, 280:1000, :]
-                        frame = cv2.resize(frame, (112, 112))
-                        window.append(frame)
-                        if k % 20 == 0 and p < 15:
-                            plt.subplot2grid((3, 15), (0, p))
-                            plt.imshow(frame)
-                            plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-                            plt.title(time, color="w")
-                            if p == 0:
-                                plt.ylabel(time)
-                            p += 1
-                if k > 24 and k < (data.shape[0]) and type(frame)!=type(None):
-                    frames.append(window)
-                j += 1
-            if p < 15 and type(frame)!=type(None):
-                plt.subplot2grid((3, 15), (0, p))
-                plt.imshow(frame)
-                plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-                p += 1
-
-            frames = np.array((frames))
+            time = file.split("/")[2].split(".")[0]
+            season = file.split("/")[1]
+            data = one_file(file, time)
+            n = data.shape[0]
+            frames = show_images_and_get_frames(n, time)
 
             im_feature, score = vis_model.predict(frames)
 
-            for s in range(im_feature.shape[1]):
-                im_feature[:, s] = (255*(im_feature[:, s] - min(im_feature[:, s])) / (max(im_feature[:, s]-min(im_feature[:, s]))))
+            p = plot_image_vector(im_feature, time)
 
-            # im_feature = np.transpose(im_feature)
-
-            p = 0
-
-            q = 0
-            while q < im_feature.shape[0] and p < 15:
-                gray_frame = im_feature[q, :].reshape((1, 8))
-                q += 4
-                plt.subplot2grid((3, 15), (1, p))
-                plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
-                plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-                if p==0:
-                    plt.ylabel(time)
-                p += 1
-
-            # # plot_all_image_features(im_feature, data, depth, time, m)
-            plt.subplot2grid((3, 15), (2, 0), colspan=p)
-            for u in range(data.shape[1]):
-                the_min = min(data[:, u])
-                the_max = max(data[:, u])
-                data_to_plot = (data[:, u]-the_min)/(the_max-the_min)
-                plt.plot(data_to_plot, label=labels[u])
-
-                if p==0:
-                    plt.ylabel(time)
+            plot_data(data, labels, time, p)
 
             m += 1
             plt.legend()
             plt.tight_layout()
-            fig.suptitle(time, fontsize=16, x=0.2)
+            title = season + " - " + time
+            fig.suptitle(title, fontsize=16, x=0.2)
             pdf.savefig(fig, bbox_inches='tight')
             plt.close()
 
