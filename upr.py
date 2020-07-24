@@ -82,7 +82,7 @@ class UPR:
                         F_Re = np.linalg.norm(F_C)
                         v_Re = np.linalg.norm(v_C)
 
-                        observation = [k, work_done,
+                        observation = [k,
                            boom, bucket, depth[i]]
                         n = len(observation)
                         observations.append(observation)
@@ -124,12 +124,6 @@ class UPR:
                     vals.append([float(i) for i in x])
                     depth.append(float(x[17]))
                 i += 1
-        # vals = np.array(vals)
-        # for j in range(30):
-        #     plt.subplot(6, 5, j+1)
-        #     plt.title(j)
-        #     plt.plot(vals[:, j])
-        # plt.show()
 
         return depth
 
@@ -181,7 +175,7 @@ class UPR:
                             work_done += abs(np.dot(F_C, v_C)) / 15
                             workdone_x += abs(F_C[0] * v_C[0]) / 15
                             workdone_y += abs(F_C[1] * v_C[1]) / 15
-                            observation = [work_done,
+                            observation = [
                                            boom, bucket, depth[i]]
                             X.append(observation)
                             i += 1
@@ -311,12 +305,12 @@ class UPR:
                 stages[y[i]].append(samples[i])
             else:
                 stages.append([samples[i]])
-
+        the_stages = []
         for stage in stages:
             mu_and_sigma = self.get_mean_and_variance(np.array(stage))
-            self.the_stages.append(mu_and_sigma)
+            the_stages.append(mu_and_sigma)
         self.terminal_state()
-        self.the_stages = np.array(self.the_stages)
+        self.the_stages = np.array(the_stages)
 
     def get_mean_and_variance(self, x):
         mu_x = np.mean(x, axis=0)

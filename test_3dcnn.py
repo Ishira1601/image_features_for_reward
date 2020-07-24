@@ -27,6 +27,20 @@ def get_file_paths(folders):
         file_paths += onlyfiles
     return file_paths
 
+def training_test_split(X):
+    from random import random
+    from random import seed
+    X_train = []
+    X_test = []
+    # seed(16)
+    for x in X:
+        r = random()
+        if r<0.8:
+            X_train.append(x)
+        else:
+            X_test.append(x)
+    return X_train, X_test
+
 def get_visual_model():
     nb_classes = 2
 
@@ -65,7 +79,7 @@ def read_depth(file, time):
             i += 1
     return depth
 
-def one_file(file, time):
+def one_file(file, upr):
     i = 0
     work_done = 0
     workdone_x = 0
@@ -75,7 +89,10 @@ def one_file(file, time):
     a = 0.0016
     prev_boom = 0
     F0 = 0
-    depth = read_depth(file, time)
+    segments = []
+    reward_function = []
+    terminals = []
+    depth = upr.read_depth(file)
     season = file.split("/")[1]
     with open(file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
@@ -112,11 +129,30 @@ def one_file(file, time):
                 workdone_x += abs(F_C[0] * v_C[0])/15
                 workdone_y += abs(F_C[1] * v_C[1])/15
 
-                observation = [transmission, P_A, depth[i], boom, bucket]
+                # observation = [transmission, P_A, depth[i], boom, bucket]
+                observation = [boom, bucket, depth[i]]
                 demonstrations.append(observation)
+
+                reward_i, segment, terminal = upr.get_intermediate_reward(observation)
+
+                segments.append(segment)
+                upr.combine_reward(reward_i, segment, i)
+                reward = upr.reward
+                reward_function.append(reward)
+
+                terminals.append(terminal)
                 i += 1
 
-    data = np.array(demonstrations)
+    demonstrations = np.array(demonstrations)
+
+    segments = np.array(segments).reshape((len(segments), 1))
+    data = np.hstack((demonstrations, segments))
+
+    terminals = np.array(terminals).reshape((len(terminals), 1))
+    data = np.hstack((data, terminals))
+
+    reward_function = np.array(reward_function).reshape((len(reward_function), 1))
+    data = np.hstack((data, reward_function))
 
     return data
 
@@ -184,7 +220,7 @@ def show_images_and_get_frames(n, time):
                 frame = cv2.resize(frame, (112, 112))
                 window.append(frame)
                 if k % 20 == 0 and p < 15:
-                    plt.subplot2grid((3, 15), (0, p))
+                    plt.subplot2grid((4, 15), (0, p))
                     plt.imshow(frame)
                     plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
                     plt.title(time, color="w")
@@ -195,7 +231,7 @@ def show_images_and_get_frames(n, time):
             frames.append(window)
         j += 1
     if p < 15 and type(frame) != type(None):
-        plt.subplot2grid((3, 15), (0, p))
+        plt.subplot2grid((4, 15), (0, p))
         plt.imshow(frame)
         plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
         p += 1
@@ -218,7 +254,7 @@ def plot_image_vector(im_feature, time):
     while q < im_feature.shape[0] and p < 15:
         gray_frame = im_feature[q, :].reshape((8, 1))
         q += 4
-        plt.subplot2grid((3, 15), (1, p))
+        plt.subplot2grid((4, 15), (1, p))
         plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
         plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
         if p == 0:
@@ -226,23 +262,35 @@ def plot_image_vector(im_feature, time):
         p += 1
     return p
 
-def plot_data(data, labels, time, p):
-    plt.subplot2grid((3, 15), (2, 0), colspan=p)
-    for u in range(data.shape[1]):
+def plot_data(data, labels,p):
+    n = data.shape[1]
+
+    plt.subplot2grid((4, 15), (2, 0), colspan=p)
+    for u in range(n-3):
         the_min = min(data[:, u])
         the_max = max(data[:, u])
         data_to_plot = (data[:, u] - the_min) / (the_max - the_min)
         plt.plot(data_to_plot, label=labels[u])
+    plt.legend()
 
-        if p == 0:
-            plt.ylabel(time)
+    plt.subplot2grid((4, 15), (3, 0), colspan=p)
+    for v in range(3, 0, -1):
+        the_min = min(data[:, n-v])
+        the_max = max(data[:, n-v])
+        data_to_plot = (data[:, n-v] - the_min) / (the_max - the_min)
+        plt.plot(data_to_plot, label=labels[n-v])
+    plt.legend()
 
 def test():
     # init 3dcnn extraction model    
     vis_model = get_visual_model()
 
     file_paths = get_file_paths(["data/winter", "data/autumn"])
-    labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
+    X_train, X_test = training_test_split(file_paths)
+    upr = UPR(X_train, n_clusters=3)
+
+    # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
+    labels = ["Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward"]
     # create images input
     m = 0
 
@@ -250,11 +298,11 @@ def test():
         for file in file_paths:
 
             plt.rc('text', usetex=False)
-            fig = plt.figure(figsize=(30, 6))
+            fig = plt.figure(figsize=(30, 8))
             plt.title(file.split('/')[2])
             time = file.split("/")[2].split(".")[0]
             season = file.split("/")[1]
-            data = one_file(file, time)
+            data = one_file(file, upr)
             n = data.shape[0]
             frames = show_images_and_get_frames(n, time)
 
@@ -262,10 +310,10 @@ def test():
 
             p = plot_image_vector(im_feature, time)
 
-            plot_data(data, labels, time, p)
+            plot_data(data, labels, p)
 
             m += 1
-            plt.legend()
+
             plt.tight_layout()
             title = season + " - " + time
             fig.suptitle(title, fontsize=16, x=0.2)
