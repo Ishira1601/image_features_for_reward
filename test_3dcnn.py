@@ -79,7 +79,7 @@ def read_depth(file, time):
             i += 1
     return depth
 
-def one_file(file, upr):
+def one_file(file, upr, total, yes):
     i = 0
     work_done = 0
     workdone_x = 0
@@ -94,6 +94,7 @@ def one_file(file, upr):
     terminals = []
     depth = upr.read_depth(file)
     season = file.split("/")[1]
+
     with open(file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         demonstrations = []
@@ -141,7 +142,12 @@ def one_file(file, upr):
                 reward_function.append(reward)
 
                 terminals.append(terminal)
+
+                terminal_gt = float(row[82])
+                if terminal==terminal_gt:
+                    yes += 1
                 i += 1
+                total += 1
 
     demonstrations = np.array(demonstrations)
 
@@ -154,7 +160,7 @@ def one_file(file, upr):
     reward_function = np.array(reward_function).reshape((len(reward_function), 1))
     data = np.hstack((data, reward_function))
 
-    return data
+    return data, total, yes
 
 def plot_all_image_features(im_feature, data, depth, time, m):
     n = im_feature.shape[1]
@@ -293,8 +299,28 @@ def test():
     labels = ["Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward"]
     # create images input
     m = 0
+    yes = 0
+    total = 0
 
     with PdfPages('data_plots.pdf') as pdf:
+        plt.rc('text', usetex=False)
+        fig = plt.figure(figsize=(30, 0.5))
+
+        title = "Learning Reward from Demonstrations"
+        plt.title(title, fontsize=32)
+        columns = ['Training Data', 'Testing Data', 'Sensor Values', 'Clustering & Classification', 'Reward']
+        cell_text = [['80 % of positive demos: mix of winter and autumn',
+                     '20 % of positive demos: mix of winter and autumn',
+                     'Boom angle, Bucket angle, Distance to the pile, Segment, Reward',
+                     'K-means clustering and KNN Classifier',
+                     'Difference R_max and Distance to the next cluster center']]
+
+        table = plt.table(cellText=cell_text, colLabels=columns, loc='bottom')
+        table.auto_set_font_size(False)
+        table.set_fontsize(16)
+        pdf.savefig(fig, bbox_inches='tight')
+        plt.close()
+
         for file in file_paths:
 
             plt.rc('text', usetex=False)
@@ -302,7 +328,7 @@ def test():
             plt.title(file.split('/')[2])
             time = file.split("/")[2].split(".")[0]
             season = file.split("/")[1]
-            data = one_file(file, upr)
+            data, total, yes = one_file(file, upr, total, yes)
             n = data.shape[0]
             frames = show_images_and_get_frames(n, time)
 
@@ -321,5 +347,7 @@ def test():
             plt.close()
 
     # plt.show()
+    accuracy = yes/total
+    print(accuracy)
 
 test()

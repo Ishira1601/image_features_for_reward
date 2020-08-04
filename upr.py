@@ -28,6 +28,7 @@ class UPR:
     def load_data(self):
         n = 0
         k = 0
+        y = []
         for file in self.files:
             i = 0
             depth = self.read_depth(file)
@@ -48,6 +49,7 @@ class UPR:
 
             with open(file) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
+
                 for row in csv_reader:
                     # distance_to_pile = distance_travelled[-1]-distance_travelled[i]
 
@@ -86,6 +88,7 @@ class UPR:
                            boom, bucket, depth[i]]
                         n = len(observation)
                         observations.append(observation)
+                        y.append(float(row[82]))
                         i += 1
                     data = [float(m) for m in row]
                     all_data.append(data)
@@ -99,15 +102,9 @@ class UPR:
 
         self.demonstrations = np.array(self.demonstrations)
         self.expert = self.demonstrations[:, 1:n]
-        X = []
-        x = []
-        for d in self.data:
-            X = X + d[:-3]
-            x = x + d[-3:]
-        self.X = np.array(X)
-        self.X = self.X[:, 1:n]
-        self.x = np.array(x)
-        self.x = self.x[:, 1:n]
+        self.X = self.expert
+        self.clf_binary = KNeighborsClassifier()
+        self.clf_binary.fit(self.X, y)
 
     def read_depth(self, file):
         time = file.split('/')[2].split('.csv')[0]
@@ -182,8 +179,6 @@ class UPR:
 
         self.clf_binary = SVC()
         self.clf_binary.fit(X, y)
-        mu_and_sigma = np.array(self.get_mean_and_variance(np.array(X)))
-        self.the_stages.append(mu_and_sigma)
 
     def plot_data(self, data, main_title="Training", title="", cluster_centers=np.zeros((1)), js=[]):
         row = 3
@@ -263,10 +258,10 @@ class UPR:
         clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
         n = self.expert.shape[0]
         self.y = clusters.labels_
-        self.X = np.vstack((self.X, self.x))
-        n_x = self.x.shape[0]
-        y_x = 3 * np.ones((n_x), dtype=int)
-        self.y = np.hstack((self.y, y_x))
+        # self.X = np.vstack((self.X, self.x))
+        # n_x = self.x.shape[0]
+        # y_x = 3 * np.ones((n_x), dtype=int)
+        # self.y = np.hstack((self.y, y_x))
         y = np.array(self.y).reshape((n, 1))
         # a = 0
         # for i in range(len(self.data)):
@@ -309,7 +304,7 @@ class UPR:
         for stage in stages:
             mu_and_sigma = self.get_mean_and_variance(np.array(stage))
             the_stages.append(mu_and_sigma)
-        self.terminal_state()
+        # self.terminal_state()
         self.the_stages = np.array(the_stages)
 
     def get_mean_and_variance(self, x):

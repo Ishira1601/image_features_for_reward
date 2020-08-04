@@ -51,8 +51,8 @@ def main():
     print(svo_input_path)
     output_path = str(Path(sys.argv[1]))+".avi"
     print(output_path)
-    output_as_video = True    
-    app_type = AppType.RIGHT_ONLY
+    output_as_video = True
+    #app_type = AppType.RIGHT_ONLY
     #exit()
     # Specify SVO path parameter
     init_params = sl.InitParameters()
