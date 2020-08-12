@@ -15,6 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import matplotlib.axes as ax
 
+from pandas.plotting import table
 from upr import UPR
 
 def get_file_paths(folders):
@@ -226,6 +227,7 @@ def show_images_and_get_frames(n, time):
                 frame = cv2.resize(frame, (112, 112))
                 window.append(frame)
                 if k % 20 == 0 and p < 15:
+                    frame = cv2.resize(frame, (160, 160))
                     plt.subplot2grid((4, 15), (0, p))
                     plt.imshow(frame)
                     plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
@@ -304,8 +306,8 @@ def test():
 
     with PdfPages('data_plots.pdf') as pdf:
         plt.rc('text', usetex=False)
-        fig = plt.figure(figsize=(30, 0.5))
-
+        fig = plt.figure(figsize=(30, 0.1))
+        plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
         title = "Learning Reward from Demonstrations"
         plt.title(title, fontsize=32)
         columns = ['Training Data', 'Testing Data', 'Sensor Values', 'Clustering & Classification', 'Reward']
@@ -317,7 +319,7 @@ def test():
 
         table = plt.table(cellText=cell_text, colLabels=columns, loc='bottom')
         table.auto_set_font_size(False)
-        table.set_fontsize(16)
+        table.set_fontsize(8)
         pdf.savefig(fig, bbox_inches='tight')
         plt.close()
 
@@ -343,11 +345,17 @@ def test():
             plt.tight_layout()
             title = season + " - " + time
             fig.suptitle(title, fontsize=16, x=0.2)
-            pdf.savefig(fig, bbox_inches='tight')
-            plt.close()
 
-    # plt.show()
-    accuracy = yes/total
-    print(accuracy)
+            if m!=(len(file_paths)-1):
+                pdf.savefig(fig, bbox_inches='tight')
+                plt.close()
+
+        accuracy = yes/total
+        columns = ["Terminal State Classification Accuracy"]
+        cell_text = [[accuracy]]
+        plt.table(cellText=cell_text, colLabels=columns, loc='bottom')
+        pdf.savefig(fig, bbox_inches='tight')
+        print(accuracy)
+        plt.close()
 
 test()

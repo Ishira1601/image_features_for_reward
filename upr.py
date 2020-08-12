@@ -8,6 +8,12 @@ from sklearn.neighbors import KNeighborsClassifier
 import warnings
 warnings.filterwarnings("ignore")
 import math
+from T3D_keras import densenet161_3D_DropOut, densenet121_3D_DropOut, xception_classifier, c3d_model, \
+    c3d_model_feature
+from tensorflow.keras.optimizers import Adam
+import os
+import cv2
+
 class UPR:
     def __init__(self, files, n_clusters):
         self.files = files
@@ -29,6 +35,7 @@ class UPR:
         n = 0
         k = 0
         y = []
+        vis_model = self.get_visual_model()
         for file in self.files:
             i = 0
             depth = self.read_depth(file)
@@ -103,6 +110,7 @@ class UPR:
         self.demonstrations = np.array(self.demonstrations)
         self.expert = self.demonstrations[:, 1:n]
         self.X = self.expert
+        self.terminal_state_classifier(len(self.data[0]))
         self.clf_binary = KNeighborsClassifier()
         self.clf_binary.fit(self.X, y)
 
@@ -132,51 +140,140 @@ class UPR:
                 distance.append(distance[-1]+float(row[62]))
         return distance
 
-    def terminal_state(self):
-        file = "data/winter/14-28-58.csv"
-        y = []
-        X = []
-        for file in self.files:
-            with open(file) as csv_file:
-                    csv_reader = csv.reader(csv_file, delimiter=',')
-                    i = 0
-                    depth = self.read_depth(file)
-                    work_done = 0
-                    workdone_x = 0
-                    workdone_y = 0
-                    a_A = 0.0020
-                    a_B = 0.0012
-                    a = 0.0016
-                    prev_boom = 0
-                    F0 = 0
-                    for row in csv_reader:
-                        if (len(depth) > i):
-                            if i<(len(depth)-64):
-                                y.append(0)
-                            else:
-                                y.append(1)
-                            P_A = float(row[28]) * 100000
-                            P_B = float(row[27]) * 100000
-                            boom = float(row[71])
-                            bucket = float(row[72])
-                            vx = float(row[62])
-                            l = float(row[21])
-                            F = a_A * P_A - a_B * P_B
-                            if i == 0:
-                                F0 = F
-                            F -= F0
-                            F_C = F * np.array([np.cos(boom), np.sin(boom)])
-                            boom_dot = (boom - prev_boom) * 15
-                            prev_boom = boom
-                            v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
-                            work_done += abs(np.dot(F_C, v_C)) / 15
-                            workdone_x += abs(F_C[0] * v_C[0]) / 15
-                            workdone_y += abs(F_C[1] * v_C[1]) / 15
-                            observation = [
-                                           boom, bucket, depth[i]]
-                            X.append(observation)
-                            i += 1
+    # def terminal_state(self):
+    #     file = "data/winter/14-28-58.csv"
+    #     y = []
+    #     X = []
+    #     for file in self.files:
+    #         with open(file) as csv_file:
+    #                 csv_reader = csv.reader(csv_file, delimiter=',')
+    #                 i = 0
+    #                 depth = self.read_depth(file)
+    #                 work_done = 0
+    #                 workdone_x = 0
+    #                 workdone_y = 0
+    #                 a_A = 0.0020
+    #                 a_B = 0.0012
+    #                 a = 0.0016
+    #                 prev_boom = 0
+    #                 F0 = 0
+    #                 for row in csv_reader:
+    #                     if (len(depth) > i):
+    #                         if i<(len(depth)-64):
+    #                             y.append(0)
+    #                         else:
+    #                             y.append(1)
+    #                         P_A = float(row[28]) * 100000
+    #                         P_B = float(row[27]) * 100000
+    #                         boom = float(row[71])
+    #                         bucket = float(row[72])
+    #                         vx = float(row[62])
+    #                         l = float(row[21])
+    #                         F = a_A * P_A - a_B * P_B
+    #                         if i == 0:
+    #                             F0 = F
+    #                         F -= F0
+    #                         F_C = F * np.array([np.cos(boom), np.sin(boom)])
+    #                         boom_dot = (boom - prev_boom) * 15
+    #                         prev_boom = boom
+    #                         v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
+    #                         work_done += abs(np.dot(F_C, v_C)) / 15
+    #                         workdone_x += abs(F_C[0] * v_C[0]) / 15
+    #                         workdone_y += abs(F_C[1] * v_C[1]) / 15
+    #                         observation = [
+    #                                        boom, bucket, depth[i]]
+    #                         X.append(observation)
+    #                         i += 1
+    #
+    #     self.clf_binary = SVC()
+    #     self.clf_binary.fit(X, y)
 
+    def get_visual_model(self):
+        nb_classes = 2
+
+        pretrained_name = 'visual_weights/C3D_feature_saved_model_weights.hdf5'
+        sample_input = np.empty(
+            [5, 112, 112, 3], dtype=np.uint8)
+        model = c3d_model_feature(sample_input.shape, nb_classes)  # , feature=True)
+        # compile model
+        optim = Adam(lr=1e-4, decay=1e-6)
+        model.compile(optimizer=optim, loss='categorical_crossentropy', metrics=['accuracy'])
+        # load pretrained weights
+        if os.path.exists(pretrained_name):
+            print('Pre-existing model weights found, loading weights.......')
+            model.load_weights(pretrained_name)
+            print('Weights loaded')
+        else:
+            import time
+            print("！！！！！NO VIS WEIGHTS FOUND！！！")
+            time.sleep(5)
+
+        return model
+
+    def get_frames(self, n, time):
+        p = 0
+        j = 0
+        k = 0
+        frames = []
+
+        frame = 0
+        flag = True
+        while flag:
+            window = []
+            for i in range(5):
+                k = j * 5 + i
+                if k > 24:
+                    file_name = "data/" + time + "_" + str(k) + ".png"
+                    frame = cv2.imread(file_name)
+                    if type(frame) == type(None):
+                        flag = False
+                        break
+
+                    frame = frame[:, 280:1000, :]
+                    frame = cv2.resize(frame, (112, 112))
+                    window.append(frame)
+                    p += 1
+            if k > 24 and flag and type(frame) != type(None):
+                frames.append(window)
+            j += 1
+
+        frames = np.array((frames))
+        return frames
+
+    def terminal_state_classifier(self, n):
+        X = None
+        y = []
+        vis_model = self.get_visual_model()
+        for file in self.files:
+            time = file.split("/")[2].split(".")[0]
+            frames = self.get_frames(n, time)
+
+            im_feature, score = vis_model.predict(frames)
+
+            if type(X)==type(None):
+                X = im_feature
+            else:
+                X = np.vstack((X, im_feature))
+            i = 0
+            j = 0
+            flag = 0
+            with open(file) as csv_file:
+                csv_reader = csv.reader(csv_file, delimiter=',')
+
+                for row in csv_reader:
+                    if i>24 and i%5==0 and j<im_feature.shape[0]:
+                        terminal = int(row[82])
+                        y.append(terminal)
+                        if terminal==1:
+                            flag = 1
+                        j += 1
+                    i += 1
+            if flag==0:
+                y[-1] = int(1)
+            while j<im_feature.shape[0]:
+                last = y[-1]
+                y.append(last)
+                j+=1
         self.clf_binary = SVC()
         self.clf_binary.fit(X, y)
 
