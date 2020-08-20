@@ -24,6 +24,7 @@ class UPR:
         self.X = []
         self.data = []
         self.T = 0
+        self.start = 5
         self.load_data()
         self.the_stages = []
         self.n_clusters = n_clusters
@@ -31,11 +32,12 @@ class UPR:
         self.step_classifier()
 
 
+
     def load_data(self):
         n = 0
         k = 0
         y = []
-        vis_model = self.get_visual_model()
+        times = []
         for file in self.files:
             i = 0
             depth = self.read_depth(file)
@@ -44,7 +46,7 @@ class UPR:
             season = file.split("/")[1]
             work_done = 0
             workdone_x = 0
-            workdone_y =0
+            workdone_y = 0
             a_A = 0.0020
             a_B = 0.0012
             alpha = (20 / 180) * 3.142
@@ -60,7 +62,7 @@ class UPR:
                 for row in csv_reader:
                     # distance_to_pile = distance_travelled[-1]-distance_travelled[i]
 
-                    if (len(depth) > i):
+                    if (len(depth) > i and i>self.start):
                         if season == "autumn" or season == "winter":
                             P_A = float(row[28]) * 100000
                             P_B = float(row[27]) * 100000
@@ -78,7 +80,7 @@ class UPR:
                             l = float(row[3])
 
                         F = a_A * P_A - a_B * P_B
-                        if i == 0:
+                        if i == self.start+1:
                             F0 = F
                         F -= F0
                         F_C = F * np.array([np.cos(boom), np.sin(boom)])
@@ -94,25 +96,31 @@ class UPR:
                         observation = [k,
                            boom, bucket, depth[i]]
                         n = len(observation)
+                        # summed += np.array(observation)
+                        # if i%5 == 0:
+                        #     averaged = list(summed/5)
+                        #
+                        #     summed = 0
                         observations.append(observation)
                         y.append(float(row[82]))
-                        i += 1
+                    i += 1
                     data = [float(m) for m in row]
                     all_data.append(data)
                 # self.plot_all(all_data, file)
             self.data.append(observations)
             self.demonstrations = self.demonstrations + observations
-            if k==0:
-                self.T = i
 
+            if k == 0:
+                self.T = i
             k+=1
+
 
         self.demonstrations = np.array(self.demonstrations)
         self.expert = self.demonstrations[:, 1:n]
         self.X = self.expert
         self.terminal_state_classifier(len(self.data[0]))
-        self.clf_binary = KNeighborsClassifier()
-        self.clf_binary.fit(self.X, y)
+        # self.clf_binary = KNeighborsClassifier()
+        # self.clf_binary.fit(self.X, y)
 
     def read_depth(self, file):
         time = file.split('/')[2].split('.csv')[0]
@@ -125,7 +133,7 @@ class UPR:
         for x in f:
             x = x.split()
             if x[0] != '#' and len(x) == 30:
-                if i>5:
+                if i>self.start:
                     vals.append([float(i) for i in x])
                     depth.append(float(x[17]))
                 i += 1
@@ -139,54 +147,6 @@ class UPR:
             for row in csv_reader:
                 distance.append(distance[-1]+float(row[62]))
         return distance
-
-    # def terminal_state(self):
-    #     file = "data/winter/14-28-58.csv"
-    #     y = []
-    #     X = []
-    #     for file in self.files:
-    #         with open(file) as csv_file:
-    #                 csv_reader = csv.reader(csv_file, delimiter=',')
-    #                 i = 0
-    #                 depth = self.read_depth(file)
-    #                 work_done = 0
-    #                 workdone_x = 0
-    #                 workdone_y = 0
-    #                 a_A = 0.0020
-    #                 a_B = 0.0012
-    #                 a = 0.0016
-    #                 prev_boom = 0
-    #                 F0 = 0
-    #                 for row in csv_reader:
-    #                     if (len(depth) > i):
-    #                         if i<(len(depth)-64):
-    #                             y.append(0)
-    #                         else:
-    #                             y.append(1)
-    #                         P_A = float(row[28]) * 100000
-    #                         P_B = float(row[27]) * 100000
-    #                         boom = float(row[71])
-    #                         bucket = float(row[72])
-    #                         vx = float(row[62])
-    #                         l = float(row[21])
-    #                         F = a_A * P_A - a_B * P_B
-    #                         if i == 0:
-    #                             F0 = F
-    #                         F -= F0
-    #                         F_C = F * np.array([np.cos(boom), np.sin(boom)])
-    #                         boom_dot = (boom - prev_boom) * 15
-    #                         prev_boom = boom
-    #                         v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
-    #                         work_done += abs(np.dot(F_C, v_C)) / 15
-    #                         workdone_x += abs(F_C[0] * v_C[0]) / 15
-    #                         workdone_y += abs(F_C[1] * v_C[1]) / 15
-    #                         observation = [
-    #                                        boom, bucket, depth[i]]
-    #                         X.append(observation)
-    #                         i += 1
-    #
-    #     self.clf_binary = SVC()
-    #     self.clf_binary.fit(X, y)
 
     def get_visual_model(self):
         nb_classes = 2
@@ -210,32 +170,27 @@ class UPR:
 
         return model
 
-    def get_frames(self, n, time):
-        p = 0
-        j = 0
-        k = 0
+    def get_frames(self, time):
+        k = self.start
+        # k = 24
         frames = []
 
-        frame = 0
         flag = True
+
         while flag:
             window = []
-            for i in range(5):
-                k = j * 5 + i
-                if k > 24:
-                    file_name = "data/" + time + "_" + str(k) + ".png"
-                    frame = cv2.imread(file_name)
-                    if type(frame) == type(None):
-                        flag = False
-                        break
-
-                    frame = frame[:, 280:1000, :]
-                    frame = cv2.resize(frame, (112, 112))
-                    window.append(frame)
-                    p += 1
-            if k > 24 and flag and type(frame) != type(None):
+            for i in range(k, k + 5):
+                file_name = "data/" + time + "_" + str(i) + ".png"
+                frame = cv2.imread(file_name)
+                if type(frame) == type(None):
+                    flag = False
+                    break
+                frame = frame[:, 280:1000, :]
+                frame = cv2.resize(frame, (112, 112))
+                window.append(frame)
+            if flag:
                 frames.append(window)
-            j += 1
+            k += 1
 
         frames = np.array((frames))
         return frames
@@ -246,7 +201,7 @@ class UPR:
         vis_model = self.get_visual_model()
         for file in self.files:
             time = file.split("/")[2].split(".")[0]
-            frames = self.get_frames(n, time)
+            frames = self.get_frames(time)
 
             im_feature, score = vis_model.predict(frames)
 
@@ -261,7 +216,7 @@ class UPR:
                 csv_reader = csv.reader(csv_file, delimiter=',')
 
                 for row in csv_reader:
-                    if i>24 and i%5==0 and j<im_feature.shape[0]:
+                    if i>self.start and j<im_feature.shape[0]:
                         terminal = int(row[82])
                         y.append(terminal)
                         if terminal==1:
@@ -350,7 +305,13 @@ class UPR:
         plt.show()
 
     def stages(self):
-        cluster_centers, js = self.set_cluster_centers()
+        # cluster_centers, js = self.set_cluster_centers()
+        cluster_centers = []
+        cluster_centers.append(self.expert[10])
+        middle = round(self.T/2)
+        cluster_centers.append(self.expert[middle])
+        end = self.T - 10
+        cluster_centers.append(self.expert[end])
         cluster_centers = np.array(cluster_centers)
         clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
         n = self.expert.shape[0]
@@ -416,10 +377,10 @@ class UPR:
         self.clf = KNeighborsClassifier()
         self.clf.fit(self.X, self.y)
 
-    def get_intermediate_reward(self, state):
+    def get_intermediate_reward(self, state, im_feature):
         n = len(state)-1
         segment = self.clf.predict([state])[0]
-        terminal = self.clf_binary.predict([state])[0]
+        terminal = self.clf_binary.predict([im_feature[0]])[0]
         expert_t = self.the_stages[segment]
         if (segment+1<self.n_clusters):
             expert_t = self.the_stages[segment+1]

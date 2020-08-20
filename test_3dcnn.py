@@ -80,7 +80,7 @@ def read_depth(file, time):
             i += 1
     return depth
 
-def one_file(file, upr, total, yes):
+def one_file(file, upr, vis_model, total, yes):
     i = 0
     work_done = 0
     workdone_x = 0
@@ -90,20 +90,19 @@ def one_file(file, upr, total, yes):
     a = 0.0016
     prev_boom = 0
     F0 = 0
-    segments = []
-    reward_function = []
-    terminals = []
     depth = upr.read_depth(file)
     season = file.split("/")[1]
+    time = file.split("/")[2].split(".")[0]
+    im_features = []
+    images = []
 
     with open(file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         demonstrations = []
 
         for row in csv_reader:
-            if (len(depth)>i):
+            if (len(depth)>i and i>upr.start):
                 if season == "autumn" or season == "winter":
-                    transmission = float(row[32])*100000
                     P_A = float(row[28])*100000
                     P_B = float(row[27])*100000
                     boom = float(row[71])
@@ -120,7 +119,7 @@ def one_file(file, upr, total, yes):
                     l = float(row[3])
 
                 F = a_A*P_A-a_B*P_B
-                if i == 0:
+                if i == upr.start+1:
                     F0 = F
                 F -= F0
                 F_C = F * np.array([np.cos(boom), np.sin(boom)])
@@ -133,35 +132,35 @@ def one_file(file, upr, total, yes):
 
                 # observation = [transmission, P_A, depth[i], boom, bucket]
                 observation = [boom, bucket, depth[i]]
-                demonstrations.append(observation)
 
-                reward_i, segment, terminal = upr.get_intermediate_reward(observation)
+                frames = get_frames(time, i)
+                if frames.shape[1]==5:
+                    im_feature, score = vis_model.predict(frames)
+                    frame = frames[0, 0, :, :, :]
+                    images.append(frame)
 
-                segments.append(segment)
+                reward_i, segment, terminal = upr.get_intermediate_reward(observation, im_feature)
+
+                # segments.append(segment)
                 upr.combine_reward(reward_i, segment, i)
                 reward = upr.reward
-                reward_function.append(reward)
 
-                terminals.append(terminal)
+                data = observation + [segment] + [terminal] + [reward]
 
                 terminal_gt = float(row[82])
                 if terminal==terminal_gt:
                     yes += 1
-                i += 1
+
+                demonstrations.append(data)
+                im_features.append(im_feature[0])
+
                 total += 1
+            i += 1
 
     demonstrations = np.array(demonstrations)
+    im_features = np.array(im_features)
 
-    segments = np.array(segments).reshape((len(segments), 1))
-    data = np.hstack((demonstrations, segments))
-
-    terminals = np.array(terminals).reshape((len(terminals), 1))
-    data = np.hstack((data, terminals))
-
-    reward_function = np.array(reward_function).reshape((len(reward_function), 1))
-    data = np.hstack((data, reward_function))
-
-    return data, total, yes
+    return demonstrations, total, yes, im_features, images
 
 def plot_all_image_features(im_feature, data, depth, time, m):
     n = im_feature.shape[1]
@@ -207,45 +206,36 @@ def plot_some(im_feature, data, depth, m):
     # depth = depth / max(abs(depth))
     # plt.plot(depth, label="di")
 
-def show_images_and_get_frames(n, time):
-    p = 0
-    j = 0
-    k = 0
+def get_frames(time, k):
     frames = []
 
-    frame = 0
-    while k < (n):
-        window = []
-        for i in range(5):
-            k = j * 5 + i
-            if k > 24 and k < (n):
-                file_name = "data/" + time + "_" + str(k) + ".png"
-                frame = cv2.imread(file_name)
-                if type(frame) == type(None):
-                    break
-                frame = frame[:, 280:1000, :]
-                frame = cv2.resize(frame, (112, 112))
-                window.append(frame)
-                if k % 20 == 0 and p < 15:
-                    frame = cv2.resize(frame, (160, 160))
-                    plt.subplot2grid((4, 15), (0, p))
-                    plt.imshow(frame)
-                    plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-                    plt.title(time, color="w")
-                    if p == 0:
-                        plt.ylabel(time)
-                    p += 1
-        if k > 24 and k < (n) and type(frame) != type(None):
-            frames.append(window)
-        j += 1
-    if p < 15 and type(frame) != type(None):
-        plt.subplot2grid((4, 15), (0, p))
-        plt.imshow(frame)
-        plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-        p += 1
+    window = []
+    for i in range(k, k+5):
+            file_name = "data/" + time + "_" + str(i) + ".png"
+            frame = cv2.imread(file_name)
+            if type(frame) == type(None):
+                break
+            frame = frame[:, 280:1000, :]
+            frame = cv2.resize(frame, (112, 112))
+            window.append(frame)
+
+    frames.append(window)
 
     frames = np.array((frames))
     return frames
+
+def plot_image(images, time):
+    k = 0
+    p = 0
+    while k < len(images) and p<15:
+        plt.subplot2grid((4, 15), (0, p))
+        plt.imshow(images[k])
+        plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+        plt.title(time, color="w")
+        if p == 0:
+            plt.ylabel(time)
+        p += 1
+        k += 20
 
 def plot_image_vector(im_feature, time):
 
@@ -261,7 +251,7 @@ def plot_image_vector(im_feature, time):
     q = 0
     while q < im_feature.shape[0] and p < 15:
         gray_frame = im_feature[q, :].reshape((8, 1))
-        q += 4
+        q += 20
         plt.subplot2grid((4, 15), (1, p))
         plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
         plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
@@ -290,7 +280,7 @@ def plot_data(data, labels,p):
     plt.legend()
 
 def test():
-    # init 3dcnn extraction model    
+    # init 3dcnn extraction model
     vis_model = get_visual_model()
 
     file_paths = get_file_paths(["data/winter", "data/autumn"])
@@ -330,11 +320,9 @@ def test():
             plt.title(file.split('/')[2])
             time = file.split("/")[2].split(".")[0]
             season = file.split("/")[1]
-            data, total, yes = one_file(file, upr, total, yes)
-            n = data.shape[0]
-            frames = show_images_and_get_frames(n, time)
+            data, total, yes, im_feature, images = one_file(file, upr, vis_model, total, yes)
 
-            im_feature, score = vis_model.predict(frames)
+            plot_image(images, time)
 
             p = plot_image_vector(im_feature, time)
 
