@@ -307,10 +307,10 @@ class UPR:
     def stages(self):
         # cluster_centers, js = self.set_cluster_centers()
         cluster_centers = []
-        cluster_centers.append(self.expert[10])
+        cluster_centers.append(self.expert[20])
         middle = round(self.T/2)
         cluster_centers.append(self.expert[middle])
-        end = self.T - 10
+        end = self.T - 20
         cluster_centers.append(self.expert[end])
         cluster_centers = np.array(cluster_centers)
         clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
@@ -380,7 +380,7 @@ class UPR:
     def get_intermediate_reward(self, state, im_feature):
         n = len(state)-1
         segment = self.clf.predict([state])[0]
-        terminal = self.clf_binary.predict([im_feature[0]])[0]
+        terminal = int(self.clf_binary.predict([im_feature[0]])[0])
         expert_t = self.the_stages[segment]
         if (segment+1<self.n_clusters):
             expert_t = self.the_stages[segment+1]
@@ -397,7 +397,7 @@ class UPR:
         reward_t = 100 - summed
         return reward_t, segment, terminal
 
-    def combine_reward(self, reward_i, segment, time):
+    def combine_reward(self, reward_i, segment):
         # if (time>300):
         #     self.reward -= time*100
 

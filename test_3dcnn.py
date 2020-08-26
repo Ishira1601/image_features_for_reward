@@ -142,14 +142,14 @@ def one_file(file, upr, vis_model, total, yes):
                 reward_i, segment, terminal = upr.get_intermediate_reward(observation, im_feature)
 
                 # segments.append(segment)
-                upr.combine_reward(reward_i, segment, i)
+                upr.combine_reward(reward_i, segment)
                 reward = upr.reward
 
-                data = observation + [segment] + [terminal] + [reward]
-
-                terminal_gt = float(row[82])
+                terminal_gt = int(row[82])
                 if terminal==terminal_gt:
                     yes += 1
+
+                data = observation + [segment] + [terminal] + [reward] + [terminal_gt]
 
                 demonstrations.append(data)
                 im_features.append(im_feature[0])
@@ -264,7 +264,7 @@ def plot_data(data, labels,p):
     n = data.shape[1]
 
     plt.subplot2grid((4, 15), (2, 0), colspan=p)
-    for u in range(n-3):
+    for u in range(n-4):
         the_min = min(data[:, u])
         the_max = max(data[:, u])
         data_to_plot = (data[:, u] - the_min) / (the_max - the_min)
@@ -272,7 +272,7 @@ def plot_data(data, labels,p):
     plt.legend()
 
     plt.subplot2grid((4, 15), (3, 0), colspan=p)
-    for v in range(3, 0, -1):
+    for v in range(4, 0, -1):
         the_min = min(data[:, n-v])
         the_max = max(data[:, n-v])
         data_to_plot = (data[:, n-v] - the_min) / (the_max - the_min)
@@ -288,7 +288,7 @@ def test():
     upr = UPR(X_train, n_clusters=3)
 
     # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
-    labels = ["Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward"]
+    labels = ["Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward", "Terminal GT"]
     # create images input
     m = 0
     yes = 0
