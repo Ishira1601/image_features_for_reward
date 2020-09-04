@@ -33,7 +33,7 @@ def training_test_split(X):
     from random import seed
     X_train = []
     X_test = []
-    # seed(16)
+    seed(16)
     for x in X:
         r = random()
         if r<0.8:
@@ -119,10 +119,14 @@ def one_file(file, upr, vis_model, total, yes):
                     l = float(row[3])
 
                 F = a_A*P_A-a_B*P_B
-                if i == upr.start+1:
+                if i < upr.start+1:
                     F0 = F
                 F -= F0
                 F_C = F * np.array([np.cos(boom), np.sin(boom)])
+                if season == "winter":
+                    F_C /= 5000
+                elif season == "autumn":
+                    F_C /= 2000
                 boom_dot = (boom - prev_boom) * 15
                 prev_boom = boom
                 v_C = np.array([vx-l*boom_dot*np.sin(boom)+a, l*boom_dot*np.cos(boom)+a])
@@ -130,8 +134,7 @@ def one_file(file, upr, vis_model, total, yes):
                 workdone_x += abs(F_C[0] * v_C[0])/15
                 workdone_y += abs(F_C[1] * v_C[1])/15
 
-                # observation = [transmission, P_A, depth[i], boom, bucket]
-                observation = [boom, bucket, depth[i]]
+                observation = [work_done, boom, bucket, depth[i]]
 
                 frames = get_frames(time, i)
                 if frames.shape[1]==5:
@@ -141,7 +144,6 @@ def one_file(file, upr, vis_model, total, yes):
 
                 reward_i, segment, terminal = upr.get_intermediate_reward(observation, im_feature)
 
-                # segments.append(segment)
                 upr.combine_reward(reward_i, segment)
                 reward = upr.reward
 
@@ -170,7 +172,7 @@ def plot_all_image_features(im_feature, data, depth, time, m):
         plt.subplot(4, n, m * n + i + 1)
 
         im_feature[:, i] = im_feature[:, i] / (max(abs(im_feature[:, i])))
-        # plt.plot(depth, im_feature[:, i], label="im")
+
         plt.plot(im_feature[:, i], label="im")
 
         depth = np.array(depth)
@@ -201,10 +203,6 @@ def plot_some(im_feature, data, depth, m):
 
     data[0:len(depth), 0] = data[0:len(depth), 0] / (max(abs(data[0:len(depth), 0])))
     plt.plot(data[0:len(depth), 0], label="wo")
-
-    # depth = np.array(depth)
-    # depth = depth / max(abs(depth))
-    # plt.plot(depth, label="di")
 
 def get_frames(time, k):
     frames = []
@@ -260,7 +258,7 @@ def plot_image_vector(im_feature, time):
         p += 1
     return p
 
-def plot_data(data, labels,p):
+def plot_data(data, labels, p):
     n = data.shape[1]
 
     plt.subplot2grid((4, 15), (2, 0), colspan=p)
@@ -288,7 +286,7 @@ def test():
     upr = UPR(X_train, n_clusters=3)
 
     # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
-    labels = ["Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward", "Terminal GT"]
+    labels = ["Workdone", "Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward", "Terminal GT"]
     # create images input
     m = 0
     yes = 0

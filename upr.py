@@ -3,8 +3,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.cluster import KMeans
-from sklearn.svm import SVC
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+
 import warnings
 warnings.filterwarnings("ignore")
 import math
@@ -13,6 +22,19 @@ from T3D_keras import densenet161_3D_DropOut, densenet121_3D_DropOut, xception_c
 from tensorflow.keras.optimizers import Adam
 import os
 import cv2
+
+classifiers = [
+    KNeighborsClassifier(5),
+    KNeighborsClassifier(3),
+    SVC(kernel="linear", C=0.025),
+    SVC(gamma=2, C=1),
+    GaussianProcessClassifier(1.0 * RBF(1.0)),
+    DecisionTreeClassifier(max_depth=5),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    MLPClassifier(alpha=1, max_iter=1000),
+    AdaBoostClassifier(),
+    GaussianNB(),
+    QuadraticDiscriminantAnalysis()]
 
 class UPR:
     def __init__(self, files, n_clusters):
@@ -26,6 +48,7 @@ class UPR:
         self.T = 0
         self.start = 5
         self.load_data()
+        self.terminal_state_classifier(len(self.data[0]))
         self.the_stages = []
         self.n_clusters = n_clusters
         self.stages()
@@ -80,10 +103,14 @@ class UPR:
                             l = float(row[3])
 
                         F = a_A * P_A - a_B * P_B
-                        if i == self.start+1:
+                        if i < self.start+1:
                             F0 = F
                         F -= F0
                         F_C = F * np.array([np.cos(boom), np.sin(boom)])
+                        if season == "winter":
+                            F_C /= 5000
+                        elif season == "autumn":
+                            F_C /= 2000
                         boom_dot = (boom - prev_boom) * 15
                         prev_boom = boom
                         v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
@@ -94,7 +121,7 @@ class UPR:
                         v_Re = np.linalg.norm(v_C)
 
                         observation = [k,
-                           boom, bucket, depth[i]]
+                           work_done, boom, bucket, depth[i]]
                         n = len(observation)
                         # summed += np.array(observation)
                         # if i%5 == 0:
@@ -118,7 +145,7 @@ class UPR:
         self.demonstrations = np.array(self.demonstrations)
         self.expert = self.demonstrations[:, 1:n]
         self.X = self.expert
-        self.terminal_state_classifier(len(self.data[0]))
+
         # self.clf_binary = KNeighborsClassifier()
         # self.clf_binary.fit(self.X, y)
 
@@ -229,7 +256,7 @@ class UPR:
                 last = y[-1]
                 y.append(last)
                 j+=1
-        self.clf_binary = SVC()
+        self.clf_binary = classifiers[1]
         self.clf_binary.fit(X, y)
 
     def plot_data(self, data, main_title="Training", title="", cluster_centers=np.zeros((1)), js=[]):
@@ -313,7 +340,8 @@ class UPR:
         end = self.T - 20
         cluster_centers.append(self.expert[end])
         cluster_centers = np.array(cluster_centers)
-        clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
+        # clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
+        clusters = AgglomerativeClustering(n_clusters=self.n_clusters).fit(self.X)
         n = self.expert.shape[0]
         self.y = clusters.labels_
         # self.X = np.vstack((self.X, self.x))
