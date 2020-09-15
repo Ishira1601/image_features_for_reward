@@ -41,18 +41,19 @@ class UPR:
         self.files = files
         self.reward = 0
         self.demonstrations = []
-        self.expert = []
         self.y = []
         self.X = []
         self.data = []
         self.T = 0
         self.start = 5
+        self.X_n = []
         self.load_data()
-        self.terminal_state_classifier(len(self.data[0]))
+        self.terminal_state_classifier()
         self.the_stages = []
         self.n_clusters = n_clusters
         self.stages()
         self.step_classifier()
+
 
 
 
@@ -127,7 +128,7 @@ class UPR:
                         # if i%5 == 0:
                         #     averaged = list(summed/5)
                         #
-                        #     summed = 0
+                        #     summed = 0(
                         observations.append(observation)
                         y.append(float(row[82]))
                     i += 1
@@ -139,12 +140,14 @@ class UPR:
 
             if k == 0:
                 self.T = i
+
+            m = len(self.data[-1])
+            self.X_n.append(m)
             k+=1
 
 
         self.demonstrations = np.array(self.demonstrations)
-        self.expert = self.demonstrations[:, 1:n]
-        self.X = self.expert
+        self.X = self.demonstrations[:, 1:n]
 
         # self.clf_binary = KNeighborsClassifier()
         # self.clf_binary.fit(self.X, y)
@@ -222,16 +225,22 @@ class UPR:
         frames = np.array((frames))
         return frames
 
-    def terminal_state_classifier(self, n):
+    def terminal_state_classifier(self):
         X = None
         y = []
         vis_model = self.get_visual_model()
+        k = 0
         for file in self.files:
             time = file.split("/")[2].split(".")[0]
             frames = self.get_frames(time)
 
             im_feature, score = vis_model.predict(frames)
-
+            n = self.X_n[k]
+            while n > im_feature.shape[0]:
+                last = im_feature[-1, :]
+                im_feature = np.vstack((im_feature, last))
+            if n < im_feature.shape[0]:
+                im_feature = im_feature[0:n, :]
             if type(X)==type(None):
                 X = im_feature
             else:
@@ -256,6 +265,8 @@ class UPR:
                 last = y[-1]
                 y.append(last)
                 j+=1
+            k+=1
+        self.image_features = X
         self.clf_binary = classifiers[1]
         self.clf_binary.fit(X, y)
 
@@ -334,15 +345,16 @@ class UPR:
     def stages(self):
         # cluster_centers, js = self.set_cluster_centers()
         cluster_centers = []
-        cluster_centers.append(self.expert[20])
+        self.X = np.hstack((self.X, self.image_features))
+        cluster_centers.append(self.X[20])
         middle = round(self.T/2)
-        cluster_centers.append(self.expert[middle])
+        cluster_centers.append(self.X[middle])
         end = self.T - 20
-        cluster_centers.append(self.expert[end])
+        cluster_centers.append(self.X[end])
         cluster_centers = np.array(cluster_centers)
-        # clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
-        clusters = AgglomerativeClustering(n_clusters=self.n_clusters).fit(self.X)
-        n = self.expert.shape[0]
+        clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
+        # clusters = AgglomerativeClustering(n_clusters=self.n_clusters).fit(self.X)
+        n = self.X.shape[0]
         self.y = clusters.labels_
         # self.X = np.vstack((self.X, self.x))
         # n_x = self.x.shape[0]
@@ -367,11 +379,11 @@ class UPR:
         j = k * i
         js= []
         while j<self.T:
-            cluster_centers.append(self.expert[j])
+            cluster_centers.append(self.X[j])
             js.append(j)
             k += 2
             j = k * i
-        cluster_centers.append(self.expert[self.T-8])
+        cluster_centers.append(self.X[self.T-8])
         return cluster_centers, js
 
 
@@ -402,12 +414,13 @@ class UPR:
         self.reward = 0
 
     def step_classifier(self):
+        # self.X = np.hstack((self.X, self.image_features))
         self.clf = KNeighborsClassifier()
         self.clf.fit(self.X, self.y)
 
     def get_intermediate_reward(self, state, im_feature):
-        n = len(state)-1
-        segment = self.clf.predict([state])[0]
+        n = state.shape[1]
+        segment = self.clf.predict(state)[0]
         terminal = int(self.clf_binary.predict([im_feature[0]])[0])
         expert_t = self.the_stages[segment]
         if (segment+1<self.n_clusters):
@@ -416,24 +429,23 @@ class UPR:
         sigma_t = expert_t[1]
         summed = 0
         for j in range(n):
-            dist = (np.square(state[j] - mu_t[j])) / np.square(sigma_t[j])
+            dist = (np.square(state[0][j] - mu_t[j])) / np.square(sigma_t[j])
             if not math.isnan(dist) and not math.isinf(dist):
                 summed = summed + dist
             else:
                 continue
         # reward_t = n/summed
-        reward_t = 100 - summed
+        reward_t = 600 - summed
         return reward_t, segment, terminal
 
     def combine_reward(self, reward_i, segment):
         # if (time>300):
         #     self.reward -= time*100
-
         if segment>0:
             # self.reward += reward_i*pow(2, segment-1)
-            self.reward = reward_i * pow(2, segment - 1)
+            self.reward = reward_i * pow(2, segment)
         else:
-            self.reward = 0
+            self.reward = reward_i * np.sqrt(2)
 
 
 

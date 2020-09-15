@@ -142,6 +142,9 @@ def one_file(file, upr, vis_model, total, yes):
                     frame = frames[0, 0, :, :, :]
                     images.append(frame)
 
+                n= len(observation)
+                observation = np.array(observation).reshape(1, n)
+                observation = np.hstack((observation, im_feature))
                 reward_i, segment, terminal = upr.get_intermediate_reward(observation, im_feature)
 
                 upr.combine_reward(reward_i, segment)
@@ -151,7 +154,7 @@ def one_file(file, upr, vis_model, total, yes):
                 if terminal==terminal_gt:
                     yes += 1
 
-                data = observation + [segment] + [terminal] + [reward] + [terminal_gt]
+                data = list(observation[0]) + [segment] + [terminal] + [reward] + [terminal_gt]
 
                 demonstrations.append(data)
                 im_features.append(im_feature[0])
@@ -262,19 +265,19 @@ def plot_data(data, labels, p):
     n = data.shape[1]
 
     plt.subplot2grid((4, 15), (2, 0), colspan=p)
-    for u in range(n-4):
-        the_min = min(data[:, u])
-        the_max = max(data[:, u])
+    for u in range(4):
+        the_min = np.min(data[:, u])
+        the_max = np.max(data[:, u])
         data_to_plot = (data[:, u] - the_min) / (the_max - the_min)
         plt.plot(data_to_plot, label=labels[u])
     plt.legend()
 
     plt.subplot2grid((4, 15), (3, 0), colspan=p)
     for v in range(4, 0, -1):
-        the_min = min(data[:, n-v])
-        the_max = max(data[:, n-v])
+        the_min = np.min(data[:, n-v])
+        the_max = np.max(data[:, n-v])
         data_to_plot = (data[:, n-v] - the_min) / (the_max - the_min)
-        plt.plot(data_to_plot, label=labels[n-v])
+        plt.plot(data_to_plot, label=labels[8-v])
     plt.legend()
 
 def test():
