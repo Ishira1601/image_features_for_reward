@@ -286,8 +286,7 @@ def test():
 
     file_paths = get_file_paths(["data/winter", "data/autumn"])
     X_train, X_test = training_test_split(file_paths)
-    R_max = 600
-    upr = UPR(X_train, n_clusters=3, R_max=R_max)
+    upr = UPR(X_train, n_clusters=3)
 
     # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
     labels = ["Workdone", "Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward", "Terminal GT"]
@@ -300,7 +299,7 @@ def test():
         plt.rc('text', usetex=False)
         fig = plt.figure(figsize=(30, 0.1))
         plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-        title = "Learning Reward from Demonstrations (" + R_max + ")"
+        title = "Learning Reward from Demonstrations"
         plt.title(title, fontsize=32)
         columns = ['Training Data', 'Testing Data', 'Sensor Values', 'Clustering & Classification', 'Reward']
         cell_text = [['80 % of positive demos: mix of winter and autumn',
