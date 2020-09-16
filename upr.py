@@ -37,8 +37,9 @@ classifiers = [
     QuadraticDiscriminantAnalysis()]
 
 class UPR:
-    def __init__(self, files, n_clusters):
+    def __init__(self, files, n_clusters, R_max):
         self.files = files
+        self.R_max = R_max
         self.reward = 0
         self.demonstrations = []
         self.expert = []
@@ -422,18 +423,18 @@ class UPR:
             else:
                 continue
         # reward_t = n/summed
-        reward_t = 100 - summed
+        reward_t = self.R_max - summed
         return reward_t, segment, terminal
 
     def combine_reward(self, reward_i, segment):
         # if (time>300):
         #     self.reward -= time*100
 
-        if segment>0:
+        if segment > 0:
             # self.reward += reward_i*pow(2, segment-1)
-            self.reward = reward_i * pow(2, segment - 1)
+            self.reward = reward_i * pow(2, segment)
         else:
-            self.reward = 0
+            self.reward = reward_i * np.sqrt(2)
 
 
 
