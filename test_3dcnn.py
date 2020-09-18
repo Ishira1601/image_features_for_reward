@@ -131,8 +131,6 @@ def one_file(file, upr, vis_model, total, yes):
                 prev_boom = boom
                 v_C = np.array([vx-l*boom_dot*np.sin(boom)+a, l*boom_dot*np.cos(boom)+a])
                 work_done += abs(np.dot(F_C, v_C))/15
-                workdone_x += abs(F_C[0] * v_C[0])/15
-                workdone_y += abs(F_C[1] * v_C[1])/15
 
                 observation = [work_done, boom, bucket, depth[i]]
 
@@ -278,6 +276,7 @@ def plot_data(data, labels, p):
         the_max = np.max(data[:, n-v])
         data_to_plot = (data[:, n-v] - the_min) / (the_max - the_min)
         plt.plot(data_to_plot, label=labels[8-v])
+        plt.xlabel("time")
     plt.legend()
 
 def test():
@@ -286,7 +285,8 @@ def test():
 
     file_paths = get_file_paths(["data/winter", "data/autumn"])
     X_train, X_test = training_test_split(file_paths)
-    upr = UPR(X_train, n_clusters=3)
+    R_max = 600
+    upr = UPR(X_train, n_clusters=3, R_max = R_max)
 
     # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
     labels = ["Workdone", "Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward", "Terminal GT"]
@@ -294,12 +294,13 @@ def test():
     m = 0
     yes = 0
     total = 0
+    times = []
 
-    with PdfPages('data_plots.pdf') as pdf:
+    with PdfPages('data_plots_w_visual.pdf') as pdf:
         plt.rc('text', usetex=False)
         fig = plt.figure(figsize=(30, 0.1))
         plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
-        title = "Learning Reward from Demonstrations"
+        title = "Learning Reward from Demonstrations \w sensors+vision (R_max = " + str(R_max) + ")"
         plt.title(title, fontsize=32)
         columns = ['Training Data', 'Testing Data', 'Sensor Values', 'Clustering & Classification', 'Reward']
         cell_text = [['80 % of positive demos: mix of winter and autumn',
@@ -321,8 +322,11 @@ def test():
             plt.title(file.split('/')[2])
             time = file.split("/")[2].split(".")[0]
             season = file.split("/")[1]
+            a = datetime.datetime.now()
             data, total, yes, im_feature, images = one_file(file, upr, vis_model, total, yes)
-
+            b = datetime.datetime.now()
+            c = b-a
+            times.append(c.seconds)
             plot_image(images, time)
 
             p = plot_image_vector(im_feature, time)
@@ -344,7 +348,8 @@ def test():
         cell_text = [[accuracy]]
         plt.table(cellText=cell_text, colLabels=columns, loc='bottom')
         pdf.savefig(fig, bbox_inches='tight')
-        print(accuracy)
+        # print(accuracy)
+        print(np.mean(np.array(times)))
         plt.close()
 
 test()
