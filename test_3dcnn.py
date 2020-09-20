@@ -281,9 +281,16 @@ def plot_data(data, labels, p):
 def test():
     # init 3dcnn extraction model
     vis_model = get_visual_model()
-
+    #
     file_paths = get_file_paths(["data/winter", "data/autumn"])
-    X_train, X_test = training_test_split(file_paths)
+    # X_train, X_test = training_test_split(file_paths)
+
+    # X_train = get_file_paths(["data/autumn"])
+    # X_test = get_file_paths(["data/winter"])
+
+    X_train = get_file_paths(["data/winter"])
+    X_test = get_file_paths(["data/autumn"])
+
     R_max = 200
     upr = UPR(X_train, n_clusters=3, R_max= R_max)
 
@@ -293,6 +300,7 @@ def test():
     m = 0
     yes = 0
     total = 0
+    times = []
 
     with PdfPages('data_plots.pdf') as pdf:
         plt.rc('text', usetex=False)
@@ -313,15 +321,18 @@ def test():
         pdf.savefig(fig, bbox_inches='tight')
         plt.close()
 
-        for file in file_paths:
+        for file in X_test:
 
             plt.rc('text', usetex=False)
             fig = plt.figure(figsize=(30, 8))
             plt.title(file.split('/')[2])
             time = file.split("/")[2].split(".")[0]
             season = file.split("/")[1]
+            a = datetime.datetime.now()
             data, total, yes, im_feature, images = one_file(file, upr, vis_model, total, yes)
-
+            b = datetime.datetime.now()
+            c = b-a
+            times.append(c.seconds)
             plot_image(images, time)
 
             p = plot_image_vector(im_feature, time)
@@ -334,7 +345,7 @@ def test():
             title = season + " - " + time
             fig.suptitle(title, fontsize=16, x=0.2)
 
-            if m!=(len(file_paths)-1):
+            if m!=(len(X_test)-1):
                 pdf.savefig(fig, bbox_inches='tight')
                 plt.close()
 
@@ -344,6 +355,8 @@ def test():
         plt.table(cellText=cell_text, colLabels=columns, loc='bottom')
         pdf.savefig(fig, bbox_inches='tight')
         print(accuracy)
+        run_time = np.mean(np.array(times))
+        print(run_time)
         plt.close()
 
 test()
