@@ -124,9 +124,9 @@ def one_file(file, upr, vis_model, total, yes):
                 F -= F0
                 F_C = F * np.array([np.cos(boom), np.sin(boom)])
                 if season == "winter":
-                    F_C /= 5000
+                    F_C /= 12700
                 elif season == "autumn":
-                    F_C /= 2000
+                    F_C /= 6700
                 boom_dot = (boom - prev_boom) * 15
                 prev_boom = boom
                 v_C = np.array([vx-l*boom_dot*np.sin(boom)+a, l*boom_dot*np.cos(boom)+a])
@@ -282,16 +282,16 @@ def test():
     # init 3dcnn extraction model
     vis_model = get_visual_model()
     #
-    file_paths = get_file_paths(["data/winter", "data/autumn"])
+    # file_paths = get_file_paths(["data/winter", "data/autumn"])
     # X_train, X_test = training_test_split(file_paths)
 
-    # X_train = get_file_paths(["data/autumn"])
-    # X_test = get_file_paths(["data/winter"])
+    X_train = get_file_paths(["data/autumn"])
+    X_test = get_file_paths(["data/winter"])
 
-    X_train = get_file_paths(["data/winter"])
-    X_test = get_file_paths(["data/autumn"])
+    # X_train = get_file_paths(["data/winter"])
+    # X_test = get_file_paths(["data/autumn"])
 
-    R_max = 200
+    R_max = 400
     upr = UPR(X_train, n_clusters=3, R_max= R_max)
 
     # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]

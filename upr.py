@@ -30,7 +30,7 @@ classifiers = [
     SVC(gamma=2, C=1),
     GaussianProcessClassifier(1.0 * RBF(1.0)),
     DecisionTreeClassifier(max_depth=5),
-    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    RandomForestClassifier(max_depth=20, n_estimators=100, max_features=4),
     MLPClassifier(alpha=1, max_iter=1000),
     AdaBoostClassifier(),
     GaussianNB(),
@@ -48,6 +48,8 @@ class UPR:
         self.data = []
         self.T = 0
         self.start = 5
+        self.winter_max = 5000
+        self.autumn_max = 2000
         self.load_data()
         self.terminal_state_classifier(len(self.data[0]))
         self.the_stages = []
@@ -62,6 +64,8 @@ class UPR:
         k = 0
         y = []
         times = []
+        autumn_maxes = []
+        winter_maxes = []
         for file in self.files:
             i = 0
             depth = self.read_depth(file)
@@ -69,8 +73,6 @@ class UPR:
             all_data = []
             season = file.split("/")[1]
             work_done = 0
-            workdone_x = 0
-            workdone_y = 0
             a_A = 0.0020
             a_B = 0.0012
             alpha = (20 / 180) * 3.142
@@ -109,17 +111,13 @@ class UPR:
                         F -= F0
                         F_C = F * np.array([np.cos(boom), np.sin(boom)])
                         if season == "winter":
-                            F_C /= 5000
+                            F_C /= 12700
                         elif season == "autumn":
-                            F_C /= 2000
+                            F_C /= 6700
                         boom_dot = (boom - prev_boom) * 15
                         prev_boom = boom
                         v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
                         work_done += abs(np.dot(F_C, v_C)) / 15
-                        workdone_x += abs(F_C[0] * v_C[0]) / 15
-                        workdone_y += abs(F_C[1] * v_C[1]) / 15
-                        F_Re = np.linalg.norm(F_C)
-                        v_Re = np.linalg.norm(v_C)
 
                         observation = [k,
                            work_done, boom, bucket, depth[i]]
@@ -135,6 +133,13 @@ class UPR:
                     data = [float(m) for m in row]
                     all_data.append(data)
                 # self.plot_all(all_data, file)
+            # if season == "winter":
+            #     winter_maxes.append(work_done)
+            # elif season == "autumn":
+            #     autumn_maxes.append(work_done)
+
+
+
             self.data.append(observations)
             self.demonstrations = self.demonstrations + observations
 
@@ -142,7 +147,11 @@ class UPR:
                 self.T = i
             k+=1
 
-
+        # winter_maxes = np.array(winter_maxes)
+        # autumn_maxes = np.array(autumn_maxes)
+        #
+        # self.winter_max = np.mean(winter_maxes)
+        # self.autumn_max = np.mean(autumn_maxes)
         self.demonstrations = np.array(self.demonstrations)
         self.expert = self.demonstrations[:, 1:n]
         self.X = self.expert
@@ -257,7 +266,7 @@ class UPR:
                 last = y[-1]
                 y.append(last)
                 j+=1
-        self.clf_binary = classifiers[1]
+        self.clf_binary = classifiers[6]
         self.clf_binary.fit(X, y)
 
     def plot_data(self, data, main_title="Training", title="", cluster_centers=np.zeros((1)), js=[]):
@@ -271,38 +280,25 @@ class UPR:
         plt.ylabel('Work done')
 
         plt.subplot(row, col, 2)
-        plt.title(title)
-        plt.plot(data[:, 1], 'b')
+        plt.plot(data[:, 1], 'm')
         if cluster_centers.any():
             plt.plot(js, cluster_centers[:, 1], 'r*')
-        plt.ylabel('Workdone_x')
-
-        plt.subplot(row, col, 3)
-        plt.plot(data[:, 2], 'b')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 2], 'r*')
-        plt.ylabel('Workdone_y')
-
-        plt.subplot(row, col, 4)
-        plt.plot(data[:, 3], 'm')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 3], 'r*')
         plt.ylabel('Boom Angle')
 
-        plt.subplot(row, col, 5)
-        plt.plot(data[:, 4], 'm')
+        plt.subplot(row, col, 3)
+        plt.plot(data[:, 2], 'm')
         if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 4], 'r*')
+            plt.plot(js, cluster_centers[:, 2], 'r*')
         plt.ylabel('Bucket angle')
 
-        plt.subplot(row, col, 6)
-        plt.plot(data[:, 5], 'g')
+        plt.subplot(row, col, 4)
+        plt.plot(data[:, 3], 'g')
         if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 5], 'r*')
+            plt.plot(js, cluster_centers[:, 3], 'r*')
         plt.ylabel('Distance to pile')
 
 
-        plt.subplot(row, col, 7)
+        plt.subplot(row, col, 5)
         plt.plot(data[:, -1])
         plt.ylabel('segment')
 
@@ -337,19 +333,21 @@ class UPR:
         cluster_centers = []
         cluster_centers.append(self.expert[20])
         middle = round(self.T/2)
+        middle = 80
         cluster_centers.append(self.expert[middle])
-        end = self.T - 20
+        end = self.T - 5
+        end = 190
         cluster_centers.append(self.expert[end])
         cluster_centers = np.array(cluster_centers)
-        # clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
-        clusters = AgglomerativeClustering(n_clusters=self.n_clusters).fit(self.X)
+        clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
+        # clusters = AgglomerativeClustering(n_clusters=self.n_clusters).fit(self.X)
         n = self.expert.shape[0]
         self.y = clusters.labels_
         # self.X = np.vstack((self.X, self.x))
         # n_x = self.x.shape[0]
         # y_x = 3 * np.ones((n_x), dtype=int)
         # self.y = np.hstack((self.y, y_x))
-        y = np.array(self.y).reshape((n, 1))
+        # y = np.array(self.y).reshape((n, 1))
         # a = 0
         # for i in range(len(self.data)):
         #     b = a + len(self.data[i])
@@ -357,7 +355,7 @@ class UPR:
         #     only_labels = y[a:b, :]
         #     data = np.hstack((only_data, only_labels))
         #     data = np.delete(data, 0, 1)
-        #     self.plot_data(data, "Training", self.files[i])
+        #     self.plot_data(data, "Training", self.files[i], cluster_centers=cluster_centers)
         #     a = b
         self.to_stages(self.y)
 
