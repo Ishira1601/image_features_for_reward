@@ -110,9 +110,9 @@ class UPR:
                         F -= F0
                         F_C = F * np.array([np.cos(boom), np.sin(boom)])
                         if season == "winter":
-                            F_C /= 5000
+                            F_C /= 12700
                         elif season == "autumn":
-                            F_C /= 2000
+                            F_C /= 6700
                         boom_dot = (boom - prev_boom) * 15
                         prev_boom = boom
                         v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
@@ -349,8 +349,10 @@ class UPR:
         self.X = np.hstack((self.X, self.image_features))
         cluster_centers.append(self.X[20])
         middle = round(self.T/2)
+        middle = 90
         cluster_centers.append(self.X[middle])
         end = self.T - 20
+        end = 190
         cluster_centers.append(self.X[end])
         cluster_centers = np.array(cluster_centers)
         clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)

@@ -124,9 +124,9 @@ def one_file(file, upr, vis_model, total, yes):
                 F -= F0
                 F_C = F * np.array([np.cos(boom), np.sin(boom)])
                 if season == "winter":
-                    F_C /= 5000
+                    F_C /= 12700
                 elif season == "autumn":
-                    F_C /= 2000
+                    F_C /= 6700
                 boom_dot = (boom - prev_boom) * 15
                 prev_boom = boom
                 v_C = np.array([vx-l*boom_dot*np.sin(boom)+a, l*boom_dot*np.cos(boom)+a])
@@ -167,7 +167,7 @@ def one_file(file, upr, vis_model, total, yes):
 
 def plot_all_image_features(im_feature, data, depth, time, m):
     n = im_feature.shape[1]
-    colours = colors.BASE_COLORS.keys()
+
     fields = ["wo", "bo", "bu"]
     for i in range(n):
         plt.subplot(4, n, m * n + i + 1)
@@ -272,10 +272,14 @@ def plot_data(data, labels, p):
 
     plt.subplot2grid((4, 15), (3, 0), colspan=p)
     for v in range(4, 0, -1):
+        if v==3:
+            linewidth = 2
+        else:
+            linewidth = 1
         the_min = np.min(data[:, n-v])
         the_max = np.max(data[:, n-v])
         data_to_plot = (data[:, n-v] - the_min) / (the_max - the_min)
-        plt.plot(data_to_plot, label=labels[8-v])
+        plt.plot(data_to_plot, label=labels[8-v], linewidth=linewidth)
         plt.xlabel("time")
     plt.legend()
 
@@ -283,9 +287,15 @@ def test():
     # init 3dcnn extraction model
     vis_model = get_visual_model()
 
-    file_paths = get_file_paths(["data/winter", "data/autumn"])
-    X_train, X_test = training_test_split(file_paths)
-    R_max = 600
+    # file_paths = get_file_paths(["data/winter", "data/autumn"])
+    # X_train, X_test = training_test_split(file_paths)
+    R_max = 1600
+
+    # X_train = get_file_paths(["data/autumn"])
+    # X_test = get_file_paths(["data/winter"])
+
+    X_train = get_file_paths(["data/winter"])
+    X_test = get_file_paths(["data/autumn"])
     upr = UPR(X_train, n_clusters=3, R_max = R_max)
 
     # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
@@ -315,7 +325,7 @@ def test():
         pdf.savefig(fig, bbox_inches='tight')
         plt.close()
 
-        for file in file_paths:
+        for file in X_test:
 
             plt.rc('text', usetex=False)
             fig = plt.figure(figsize=(30, 8))
@@ -339,7 +349,7 @@ def test():
             title = season + " - " + time
             fig.suptitle(title, fontsize=16, x=0.2)
 
-            if m!=(len(file_paths)-1):
+            if m!=(len(X_test)-1):
                 pdf.savefig(fig, bbox_inches='tight')
                 plt.close()
 
@@ -348,7 +358,7 @@ def test():
         cell_text = [[accuracy]]
         plt.table(cellText=cell_text, colLabels=columns, loc='bottom')
         pdf.savefig(fig, bbox_inches='tight')
-        # print(accuracy)
+        print(accuracy)
         print(np.mean(np.array(times)))
         plt.close()
 
