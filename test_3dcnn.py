@@ -287,15 +287,16 @@ def test():
     # init 3dcnn extraction model
     vis_model = get_visual_model()
 
-    # file_paths = get_file_paths(["data/winter", "data/autumn"])
-    # X_train, X_test = training_test_split(file_paths)
-    R_max = 1600
+    file_paths = get_file_paths(["data/winter", "data/autumn"])
+    X_train, X_test = training_test_split(file_paths)
+    R_max = 600
 
     # X_train = get_file_paths(["data/autumn"])
     # X_test = get_file_paths(["data/winter"])
 
-    X_train = get_file_paths(["data/winter"])
-    X_test = get_file_paths(["data/autumn"])
+    # X_train = get_file_paths(["data/winter"])
+    # X_test = get_file_paths(["data/autumn"])
+
     upr = UPR(X_train, n_clusters=3, R_max = R_max)
 
     # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]

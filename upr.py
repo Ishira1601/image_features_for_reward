@@ -25,16 +25,11 @@ import cv2
 
 classifiers = [
     KNeighborsClassifier(5),
-    KNeighborsClassifier(3),
     SVC(kernel="linear", C=0.025),
-    SVC(gamma=2, C=1),
-    GaussianProcessClassifier(1.0 * RBF(1.0)),
     DecisionTreeClassifier(max_depth=5),
-    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    RandomForestClassifier(max_depth=20, n_estimators=100, max_features=4),
     MLPClassifier(alpha=1, max_iter=1000),
-    AdaBoostClassifier(),
-    GaussianNB(),
-    QuadraticDiscriminantAnalysis()]
+    AdaBoostClassifier()]
 
 class UPR:
     def __init__(self, files, n_clusters, R_max):
@@ -268,7 +263,7 @@ class UPR:
                 j+=1
             k+=1
         self.image_features = X
-        self.clf_binary = classifiers[1]
+        self.clf_binary = classifiers[5 ]
         self.clf_binary.fit(X, y)
 
     def plot_data(self, data, main_title="Training", title="", cluster_centers=np.zeros((1)), js=[]):
