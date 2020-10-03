@@ -263,7 +263,7 @@ class UPR:
                 j+=1
             k+=1
         self.image_features = X
-        self.clf_binary = classifiers[5 ]
+        self.clf_binary = classifiers[1]
         self.clf_binary.fit(X, y)
 
     def plot_data(self, data, main_title="Training", title="", cluster_centers=np.zeros((1)), js=[]):
