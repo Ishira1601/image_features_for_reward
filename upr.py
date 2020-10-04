@@ -23,44 +23,34 @@ from tensorflow.keras.optimizers import Adam
 import os
 import cv2
 
-classifiers = [
-    KNeighborsClassifier(5),
-    SVC(kernel="linear", C=0.025),
-    DecisionTreeClassifier(max_depth=5),
-    RandomForestClassifier(max_depth=20, n_estimators=100, max_features=4),
-    MLPClassifier(alpha=1, max_iter=1000),
-    AdaBoostClassifier()]
 
 class UPR:
     def __init__(self, files, n_clusters, R_max):
-        self.files = files
+        self.files = files # files for testing
         self.R_max = R_max
         self.reward = 0
         self.demonstrations = []
-        self.expert = []
-        self.y = []
-        self.X = []
+        self.y = [] # stage labels after clustering
+        self.X = [] # expert demonstrations (workdone, boom angle, bucket angle, distance to the pile)
         self.data = []
-        self.T = 0
-        self.start = 5
-        self.winter_max = 5000
-        self.autumn_max = 2000
-        self.load_data()
-        self.terminal_state_classifier(len(self.data[0]))
+        self.start = 5 # read data after 5 time steps
+        self.winter_max = 12700 # number to divide to normalize winter workdone
+        self.autumn_max = 6700 # n number to divide by to normalize autumn workdone
+        self.load_data() # Get Load expert data
+        self.terminal_state_classifier(len(self.data[0])) # Fit terminal state classifier
         self.the_stages = []
         self.n_clusters = n_clusters
-        self.stages()
-        self.step_classifier()
+        self.stages() # Calculate mu and sigma for stages
+        self.step_classifier() # Fit Stage Classifier
 
 
 
     def load_data(self):
+        # Function to Load all the data from the CSV files, extract boom and bucket angles,
+        # calculate workdone and obtain distance to the pile
         n = 0
         k = 0
         y = []
-        times = []
-        autumn_maxes = []
-        winter_maxes = []
         for file in self.files:
             i = 0
             depth = self.read_depth(file)
@@ -70,7 +60,6 @@ class UPR:
             work_done = 0
             a_A = 0.0020
             a_B = 0.0012
-            alpha = (20 / 180) * 3.142
             l = 1.5
             a = 0.0016
             prev_boom = 0
@@ -81,59 +70,16 @@ class UPR:
                 csv_reader = csv.reader(csv_file, delimiter=',')
 
                 for row in csv_reader:
-                    # distance_to_pile = distance_travelled[-1]-distance_travelled[i]
-
                     if (len(depth) > i and i>self.start):
-                        if season == "autumn" or season == "winter":
-                            P_A = float(row[28]) * 100000
-                            P_B = float(row[27]) * 100000
-                            boom = float(row[71])
-                            bucket = float(row[72])
-                            vx = float(row[62])
-                            l = float(row[21])
-                        if season == "summer":
-                            P_A = float(row[9]) * 100000
-                            P_B = float(row[8]) * 100000
-                            boom = float(row[1])
-                            bucket = float(row[2])
-                            vx = (depth[i] - prev_depth)
-                            prev_depth = depth[i]
-                            l = float(row[3])
-
-                        F = a_A * P_A - a_B * P_B
-                        if i < self.start+1:
-                            F0 = F
-                        F -= F0
-                        F_C = F * np.array([np.cos(boom), np.sin(boom)])
-                        if season == "winter":
-                            F_C /= 12700
-                        elif season == "autumn":
-                            F_C /= 6700
-                        boom_dot = (boom - prev_boom) * 15
-                        prev_boom = boom
-                        v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
-                        work_done += abs(np.dot(F_C, v_C)) / 15
-
-                        observation = [k,
-                           work_done, boom, bucket, depth[i]]
+                        features, prev_boom = self.get_feature_vector(row, season, depth[i],
+                                                        a_A, a_B, i, prev_boom, work_done, a, F0)
+                        observation = [k] + features
                         n = len(observation)
-                        # summed += np.array(observation)
-                        # if i%5 == 0:
-                        #     averaged = list(summed/5)
-                        #
-                        #     summed = 0
                         observations.append(observation)
                         y.append(float(row[82]))
                     i += 1
                     data = [float(m) for m in row]
                     all_data.append(data)
-                # self.plot_all(all_data, file)
-            # if season == "winter":
-            #     winter_maxes.append(work_done)
-            # elif season == "autumn":
-            #     autumn_maxes.append(work_done)
-
-
 
             self.data.append(observations)
             self.demonstrations = self.demonstrations + observations
@@ -142,19 +88,11 @@ class UPR:
                 self.T = i
             k+=1
 
-        # winter_maxes = np.array(winter_maxes)
-        # autumn_maxes = np.array(autumn_maxes)
-        #
-        # self.winter_max = np.mean(winter_maxes)
-        # self.autumn_max = np.mean(autumn_maxes)
         self.demonstrations = np.array(self.demonstrations)
-        self.expert = self.demonstrations[:, 1:n]
-        self.X = self.expert
-
-        # self.clf_binary = KNeighborsClassifier()
-        # self.clf_binary.fit(self.X, y)
+        self.X = self.demonstrations[:, 1:n]
 
     def read_depth(self, file):
+        ## Read depth from ZED depth file
         time = file.split('/')[2].split('.csv')[0]
         folder = file.split('/')[0] + '/' + file.split('/')[1] + '_depth/'
         depth_file = folder + time + ".svo-depth.txt"
@@ -172,15 +110,34 @@ class UPR:
 
         return depth
 
-    def get_distance_travelled(self, file):
-        with open(file) as csv_file:
-            csv_reader = csv.reader(csv_file, delimiter=',')
-            distance = [0.0]
-            for row in csv_reader:
-                distance.append(distance[-1]+float(row[62]))
-        return distance
+    def get_feature_vector(self, row, season, distance, a_A, a_B, i, prev_boom, work_done, a, F0):
+        if season == "autumn" or season == "winter":
+            P_A = float(row[28]) * 100000
+            P_B = float(row[27]) * 100000
+            boom = float(row[71])
+            bucket = float(row[72])
+            vx = float(row[62])
+            l = float(row[21])
 
+        F = a_A * P_A - a_B * P_B
+        if i < self.start + 1:
+            F0 = F
+        F -= F0
+        F_C = F * np.array([np.cos(boom), np.sin(boom)])
+        if season == "winter":
+            F_C /= self.winter_max
+        elif season == "autumn":
+            F_C /= self.autumn_max
+        boom_dot = (boom - prev_boom) * 15
+        prev_boom = boom
+        v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
+        work_done += abs(np.dot(F_C, v_C)) / 15
+
+        observation = [work_done, boom, bucket, distance]
+
+        return observation, prev_boom
     def get_visual_model(self):
+        ## Get visual model (Wenyan's code)
         nb_classes = 2
 
         pretrained_name = 'visual_weights/C3D_feature_saved_model_weights.hdf5'
@@ -261,115 +218,52 @@ class UPR:
                 last = y[-1]
                 y.append(last)
                 j+=1
+        classifiers = [
+            KNeighborsClassifier(5),
+            SVC(kernel="linear", C=0.025),
+            DecisionTreeClassifier(max_depth=5),
+            RandomForestClassifier(max_depth=20, n_estimators=100, max_features=4),
+            MLPClassifier(alpha=1, max_iter=1000),
+            AdaBoostClassifier()]
         self.clf_binary = classifiers[4]
         self.clf_binary.fit(X, y)
 
-    def plot_data(self, data, main_title="Training", title="", cluster_centers=np.zeros((1)), js=[]):
-        row = 3
-        col = 3
-        plt.subplot(row, col, 1)
-        plt.title(main_title)
-        plt.plot(data[:, 0], 'b')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 0], 'r*')
-        plt.ylabel('Work done')
-
-        plt.subplot(row, col, 2)
-        plt.plot(data[:, 1], 'm')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 1], 'r*')
-        plt.ylabel('Boom Angle')
-
-        plt.subplot(row, col, 3)
-        plt.plot(data[:, 2], 'm')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 2], 'r*')
-        plt.ylabel('Bucket angle')
-
-        plt.subplot(row, col, 4)
-        plt.plot(data[:, 3], 'g')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 3], 'r*')
-        plt.ylabel('Distance to pile')
-
-
-        plt.subplot(row, col, 5)
-        plt.plot(data[:, -1])
-        plt.ylabel('segment')
-
-        plt.xlabel('time')
-        plt.show()
-
-    def plot_all(self, all_data, file):
-        plt.suptitle(file)
-        all_data = np.array(all_data)
-        for i in range(30):
-            plt.subplot(5, 6, i+1)
-            plt.title(i)
-            plt.plot(all_data[:, i])
-        plt.show()
-        plt.figure()
-        plt.suptitle(file)
-        for i in range(30):
-            plt.subplot(5, 6, i + 1)
-            plt.title(i+30)
-            plt.plot(all_data[:, i+30])
-        plt.show()
-        plt.figure()
-        plt.suptitle(file)
-        for i in range(20):
-            plt.subplot(4, 5, i + 1)
-            plt.title(i+60)
-            plt.plot(all_data[:, i+60])
-        plt.show()
-
     def stages(self):
+        ## Unsupervised Clustering to obtain stage labels and Calculate mu and sigma
         # cluster_centers, js = self.set_cluster_centers()
         cluster_centers = []
-        cluster_centers.append(self.expert[20])
+        cluster_centers.append(self.X[20])
         middle = round(self.T/2)
         middle = 80
-        cluster_centers.append(self.expert[middle])
+        cluster_centers.append(self.X[middle])
         end = self.T - 5
         end = 190
-        cluster_centers.append(self.expert[end])
+        cluster_centers.append(self.X[end])
         cluster_centers = np.array(cluster_centers)
         clusters = KMeans(n_clusters=self.n_clusters, init=cluster_centers).fit(self.X)
         # clusters = AgglomerativeClustering(n_clusters=self.n_clusters).fit(self.X)
-        n = self.expert.shape[0]
         self.y = clusters.labels_
-        # self.X = np.vstack((self.X, self.x))
-        # n_x = self.x.shape[0]
-        # y_x = 3 * np.ones((n_x), dtype=int)
-        # self.y = np.hstack((self.y, y_x))
-        # y = np.array(self.y).reshape((n, 1))
-        # a = 0
-        # for i in range(len(self.data)):
-        #     b = a + len(self.data[i])
-        #     only_data = np.array(self.data[i])
-        #     only_labels = y[a:b, :]
-        #     data = np.hstack((only_data, only_labels))
-        #     data = np.delete(data, 0, 1)
-        #     self.plot_data(data, "Training", self.files[i], cluster_centers=cluster_centers)
-        #     a = b
+        ## Calculate means and variances
         self.to_stages(self.y)
 
     def set_cluster_centers(self):
+        # Initialize cluster centers
         i = round(self.T / (2 * (self.n_clusters-1)))
         cluster_centers = []
         k = 1
         j = k * i
         js= []
         while j<self.T:
-            cluster_centers.append(self.expert[j])
+            cluster_centers.append(self.X[j])
             js.append(j)
             k += 2
             j = k * i
-        cluster_centers.append(self.expert[self.T-8])
+        cluster_centers.append(self.X[self.T-8])
         return cluster_centers, js
 
 
     def to_stages(self, y):
+        ## Calculate Means and Variances
         n= len(y)
         stages = []
         samples = self.X
@@ -388,6 +282,7 @@ class UPR:
         self.the_stages = np.array(the_stages)
 
     def get_mean_and_variance(self, x):
+        ## Calculate Mean and Variance for a Single Stage
         mu_x = np.mean(x, axis=0)
         sigma_x = np.std(x, axis=0)
         return np.array([mu_x, sigma_x])
@@ -396,10 +291,12 @@ class UPR:
         self.reward = 0
 
     def step_classifier(self):
+        ## Fit the Stage Classifier
         self.clf = KNeighborsClassifier()
         self.clf.fit(self.X, self.y)
 
-    def get_intermediate_reward(self, state, im_feature):
+    def get_reward(self, state, im_feature):
+        ## Calculate the intermediate reward and task completion
         n = len(state)-1
         segment = self.clf.predict([state])[0]
         terminal = int(self.clf_binary.predict([im_feature[0]])[0])
@@ -415,19 +312,20 @@ class UPR:
                 summed = summed + dist
             else:
                 continue
-        # reward_t = n/summed
+
         reward_t = self.R_max - summed
-        return reward_t, segment, terminal
+        reward = self.combine_reward(reward_t, segment)
+        return reward, segment, terminal
 
     def combine_reward(self, reward_i, segment):
-        # if (time>300):
-        #     self.reward -= time*100
-
+        ## Combine reward
+        reward = 0
         if segment > 0:
-            # self.reward += reward_i*pow(2, segment-1)
-            self.reward = reward_i * pow(2, segment)
+            reward = reward_i * pow(2, segment)
         else:
-            self.reward = reward_i * np.sqrt(2)
+            reward = reward_i * np.sqrt(2)
+
+        return reward
 
 
 

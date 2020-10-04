@@ -19,6 +19,7 @@ from pandas.plotting import table
 from upr import UPR
 
 def get_file_paths(folders):
+    ## Get File Paths ffor files in folders
     from os import listdir
     from os.path import isfile, join
 
@@ -29,6 +30,7 @@ def get_file_paths(folders):
     return file_paths
 
 def training_test_split(X):
+    ## Obtain 80% Training and 20% Testing Data
     from random import random
     from random import seed
     X_train = []
@@ -42,49 +44,10 @@ def training_test_split(X):
             X_test.append(x)
     return X_train, X_test
 
-def get_visual_model():
-    nb_classes = 2
-
-    pretrained_name = 'visual_weights/C3D_feature_saved_model_weights.hdf5'
-    sample_input = np.empty(
-        [5, 112, 112, 3], dtype=np.uint8)
-    model = c3d_model_feature(sample_input.shape, nb_classes)  # , feature=True)
-    # compile model
-    optim = Adam(lr=1e-4, decay=1e-6)
-    model.compile(optimizer=optim, loss='categorical_crossentropy', metrics=['accuracy'])
-    # load pretrained weights
-    if os.path.exists(pretrained_name):
-        print('Pre-existing model weights found, loading weights.......')
-        model.load_weights( pretrained_name)
-        print('Weights loaded')
-    else:
-        import time
-        print("！！！！！NO VIS WEIGHTS FOUND！！！")
-        time.sleep(5)
-
-    return model
-
-def read_depth(file, time):
-    folder = file.split('/')[0] + '/' + file.split('/')[1] + '_depth/'
-    depth_file = folder + time + ".svo-depth.txt"
-    f = open(depth_file, "r")
-    i = 0
-    depth = []
-    summed = 0
-    j = 0
-    for x in f:
-        x = x.split()
-        if x[0] != '#' and len(x) == 30:
-            if i > 5:
-                depth.append(float(x[17]))
-            i += 1
-    return depth
-
 def one_file(file, upr, vis_model, total, yes):
+    ## Obtain Reward function for one demonstration
     i = 0
     work_done = 0
-    workdone_x = 0
-    workdone_y = 0
     a_A = 0.0020
     a_B = 0.0012
     a = 0.0016
@@ -102,50 +65,18 @@ def one_file(file, upr, vis_model, total, yes):
 
         for row in csv_reader:
             if (len(depth)>i and i>upr.start):
-                if season == "autumn" or season == "winter":
-                    P_A = float(row[28])*100000
-                    P_B = float(row[27])*100000
-                    boom = float(row[71])
-                    bucket = float(row[72])
-                    vx = float(row[62])
-                    l = float(row[21])
-                if season == "summer":
-                    P_A = float(row[9]) * 100000
-                    P_B = float(row[8]) * 100000
-                    boom = float(row[1])
-                    bucket = float(row[2])
-                    vx = (depth[i] - prev_depth) * 15
-                    prev_depth = depth[i]
-                    l = float(row[3])
-
-                F = a_A*P_A-a_B*P_B
-                if i < upr.start+1:
-                    F0 = F
-                F -= F0
-                F_C = F * np.array([np.cos(boom), np.sin(boom)])
-                if season == "winter":
-                    F_C /= 12700
-                elif season == "autumn":
-                    F_C /= 6700
-                boom_dot = (boom - prev_boom) * 15
-                prev_boom = boom
-                v_C = np.array([vx-l*boom_dot*np.sin(boom)+a, l*boom_dot*np.cos(boom)+a])
-                work_done += abs(np.dot(F_C, v_C))/15
-                workdone_x += abs(F_C[0] * v_C[0])/15
-                workdone_y += abs(F_C[1] * v_C[1])/15
-
-                observation = [work_done, boom, bucket, depth[i]]
-
+                ## Get Image Features
                 frames = get_frames(time, i)
-                if frames.shape[1]==5:
+                if frames.shape[1] == 5:
                     im_feature, score = vis_model.predict(frames)
                     frame = frames[0, 0, :, :, :]
                     images.append(frame)
 
-                reward_i, segment, terminal = upr.get_intermediate_reward(observation, im_feature)
+                ## Populate feature vector
+                observation, prev_boom = upr.get_feature_vector(row, season, depth[i],
+                                                              a_A, a_B, i, prev_boom, work_done, a, F0)
 
-                upr.combine_reward(reward_i, segment)
-                reward = upr.reward
+                reward, segment, terminal = upr.get_reward(observation, im_feature)
 
                 terminal_gt = int(row[82])
                 if terminal==terminal_gt:
@@ -164,47 +95,8 @@ def one_file(file, upr, vis_model, total, yes):
 
     return demonstrations, total, yes, im_features, images
 
-def plot_all_image_features(im_feature, data, depth, time, m):
-    n = im_feature.shape[1]
-    colours = colors.BASE_COLORS.keys()
-    fields = ["wo", "bo", "bu"]
-    for i in range(n):
-        plt.subplot(4, n, m * n + i + 1)
-
-        im_feature[:, i] = im_feature[:, i] / (max(abs(im_feature[:, i])))
-
-        plt.plot(im_feature[:, i], label="im")
-
-        depth = np.array(depth)
-        depth = depth / max(abs(depth))
-        plt.plot(depth, label="di")
-
-        if i == 0 and m == 0:
-            plt.legend()
-
-        for p in range(len(fields)):
-            data[0:len(depth), p] = data[0:len(depth), p] / (max(abs(data[0:len(depth), p])))
-            # plt.plot(depth, data[0:len(depth), p], label=fields[p])
-            plt.plot(data[0:len(depth), p], label=fields[p])
-            if i == 0 and m == 0:
-                plt.legend()
-
-        plt.title(i)
-        if i == 0:
-            plt.ylabel(time)
-
-def plot_some(im_feature, data, depth, m):
-    plt.subplot(2, 2, m + 1)
-    im_feature[:, 4] = im_feature[:, 4] / (max(abs(im_feature[:, 4])))
-    plt.plot(im_feature[:, 4], label="4")
-
-    im_feature[:, 2] = im_feature[:, 2] / (max(abs(im_feature[:, 2])))
-    plt.plot(im_feature[:, 2], label="2")
-
-    data[0:len(depth), 0] = data[0:len(depth), 0] / (max(abs(data[0:len(depth), 0])))
-    plt.plot(data[0:len(depth), 0], label="wo")
-
 def get_frames(time, k):
+    ## Get frames from time
     frames = []
 
     window = []
@@ -223,6 +115,7 @@ def get_frames(time, k):
     return frames
 
 def plot_image(images, time):
+    ## Plot images
     k = 0
     p = 0
     while k < len(images) and p<15:
@@ -236,8 +129,7 @@ def plot_image(images, time):
         k += 20
 
 def plot_image_vector(im_feature, time):
-
-
+    ## Plot 8 image features
     for s in range(im_feature.shape[1]):
         im_feature[:, s] = (
                     255 * (im_feature[:, s] - min(im_feature[:, s])) / (max(im_feature[:, s] - min(im_feature[:, s]))))
@@ -261,6 +153,7 @@ def plot_image_vector(im_feature, time):
 def plot_data(data, labels, p):
     n = data.shape[1]
 
+    ## Plot Workdone, Boom and Bucket Angle, Distance to the pile
     plt.subplot2grid((4, 15), (2, 0), colspan=p)
     for u in range(n-4):
         the_min = min(data[:, u])
@@ -269,6 +162,7 @@ def plot_data(data, labels, p):
         plt.plot(data_to_plot, label=labels[u])
     plt.legend()
 
+    ## Plot Reward, Stage, Terminal, Terminal GT
     plt.subplot2grid((4, 15), (3, 0), colspan=p)
     for v in range(4, 0, -1):
         the_min = min(data[:, n-v])
@@ -279,9 +173,6 @@ def plot_data(data, labels, p):
     plt.legend()
 
 def test():
-    # init 3dcnn extraction model
-    vis_model = get_visual_model()
-
     # file_paths = get_file_paths(["data/winter", "data/autumn"])
     # X_train, X_test = training_test_split(file_paths)
 
@@ -292,9 +183,11 @@ def test():
     X_test = get_file_paths(["data/autumn"])
 
     R_max = 1600
-    upr = UPR(X_train, n_clusters=3, R_max= R_max)
+    upr = UPR(X_train, n_clusters=3, R_max=R_max)
 
-    # labels = ["Transmission","Telescopic","Distance", "Boom", "Bucket"]
+    # init 3dcnn extraction model
+    vis_model = upr.get_visual_model()
+
     labels = ["Workdone", "Boom", "Bucket", "Distance", "Segments", "Terminal", "Reward", "Terminal GT"]
     # create images input
     m = 0
