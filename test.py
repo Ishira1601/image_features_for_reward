@@ -186,14 +186,14 @@ def plot_data(data, labels, p):
     plt.legend()
 
 def test():
-    # file_paths = get_file_paths(["data/winter", "data/autumn"])
-    # X_train, X_test = training_test_split(file_paths)
+    file_paths = get_file_paths(["data/winter", "data/autumn"])
+    X_train, X_test = training_test_split(file_paths)
 
     # X_train = get_file_paths(["data/autumn"])
     # X_test = get_file_paths(["data/winter"])
 
-    X_train = get_file_paths(["data/winter"])
-    X_test = get_file_paths(["data/autumn"])
+    # X_train = get_file_paths(["data/winter"])
+    # X_test = get_file_paths(["data/autumn"])
 
 
     ## Set up Unsupervised Perceptual Reward
