@@ -25,8 +25,9 @@ import cv2
 
 
 class UPR:
-    def __init__(self, files, n_clusters, R_max):
+    def __init__(self, files, image_folder, n_clusters, R_max):
         self.files = files # files for testing
+        self.image_folder = image_folder
         self.R_max = R_max
         self.reward = 0
         self.demonstrations = []
@@ -57,7 +58,7 @@ class UPR:
             observations = []
             all_data = []
             season = file.split("/")[1]
-            work_done = 0
+            prev_work_done = 0
             a_A = 0.0020
             a_B = 0.0012
             l = 1.5
@@ -71,12 +72,23 @@ class UPR:
 
                 for row in csv_reader:
                     if (len(depth) > i and i>self.start):
-                        features, prev_boom = self.get_feature_vector(row, season, depth[i],
-                                                        a_A, a_B, i, prev_boom, work_done, a, F0)
+                        if season == "autumn" or season == "winter":
+                            P_A = float(row[28]) * 100000
+                            P_B = float(row[27]) * 100000
+                            boom = float(row[71])
+                            bucket = float(row[72])
+                            vx = float(row[62])
+                            l = float(row[21])
+
+                        sensor_values = [P_A, P_B, boom, bucket, vx, l]
+                        features, F0 = self.get_feature_vector(sensor_values, season, depth[i],
+                                                        i, prev_boom, prev_work_done, F0)
+
                         observation = [k] + features
                         n = len(observation)
                         observations.append(observation)
                         y.append(float(row[82]))
+                        prev_work_done, prev_boom, prev_bucket, prev_distance =features
                     i += 1
                     data = [float(m) for m in row]
                     all_data.append(data)
@@ -110,15 +122,8 @@ class UPR:
 
         return depth
 
-    def get_feature_vector(self, row, season, distance, a_A, a_B, i, prev_boom, work_done, a, F0):
-        if season == "autumn" or season == "winter":
-            P_A = float(row[28]) * 100000
-            P_B = float(row[27]) * 100000
-            boom = float(row[71])
-            bucket = float(row[72])
-            vx = float(row[62])
-            l = float(row[21])
-
+    def get_feature_vector(self, sensor_values, season, distance, i, prev_boom, work_done, F0, a_A = 0.0020, a_B = 0.0012, a = 0.0016):
+        P_A, P_B, boom, bucket, vx, l = sensor_values
         F = a_A * P_A - a_B * P_B
         if i < self.start + 1:
             F0 = F
@@ -129,13 +134,13 @@ class UPR:
         elif season == "autumn":
             F_C /= self.autumn_max
         boom_dot = (boom - prev_boom) * 15
-        prev_boom = boom
+
         v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
         work_done += abs(np.dot(F_C, v_C)) / 15
 
         observation = [work_done, boom, bucket, distance]
 
-        return observation, prev_boom
+        return observation, F0
     def get_visual_model(self):
         ## Get visual model (Wenyan's code)
         nb_classes = 2
@@ -169,7 +174,7 @@ class UPR:
         while flag:
             window = []
             for i in range(k, k + 5):
-                file_name = "data/" + time + "_" + str(i) + ".png"
+                file_name = self.image_folder + "/" + time + "_" + str(i) + ".png"
                 frame = cv2.imread(file_name)
                 if type(frame) == type(None):
                     flag = False

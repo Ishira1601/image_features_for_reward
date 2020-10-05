@@ -44,10 +44,10 @@ def training_test_split(X):
             X_test.append(x)
     return X_train, X_test
 
-def one_file(file, upr, vis_model, total, yes):
+def one_file(file, image_folder, upr, vis_model, total, yes):
     ## Obtain Reward function for one demonstration
     i = 0
-    work_done = 0
+    prev_work_done = 0
     a_A = 0.0020
     a_B = 0.0012
     a = 0.0016
@@ -66,15 +66,26 @@ def one_file(file, upr, vis_model, total, yes):
         for row in csv_reader:
             if (len(depth)>i and i>upr.start):
                 ## Get Image Features
-                frames = get_frames(time, i)
+                frames = get_frames(image_folder, time, i)
                 if frames.shape[1] == 5:
                     im_feature, score = vis_model.predict(frames)
                     frame = frames[0, 0, :, :, :]
                     images.append(frame)
 
+                ## Extract sensor values
+                if season == "autumn" or season == "winter":
+                    P_A = float(row[28]) * 100000
+                    P_B = float(row[27]) * 100000
+                    boom = float(row[71])
+                    bucket = float(row[72])
+                    vx = float(row[62])
+                    l = float(row[21])
+
                 ## Populate feature vector
-                observation, prev_boom = upr.get_feature_vector(row, season, depth[i],
-                                                              a_A, a_B, i, prev_boom, work_done, a, F0)
+                sensor_values = [P_A, P_B, boom, bucket, vx, l]
+                observation, F0 = upr.get_feature_vector(sensor_values, season, depth[i],
+                                                       i, prev_boom, prev_work_done, F0)
+
 
                 reward, segment, terminal = upr.get_reward(observation, im_feature)
 
@@ -87,6 +98,8 @@ def one_file(file, upr, vis_model, total, yes):
                 demonstrations.append(data)
                 im_features.append(im_feature[0])
 
+                prev_work_done, prev_boom, prev_bucket, prev_distance = observation
+
                 total += 1
             i += 1
 
@@ -95,13 +108,13 @@ def one_file(file, upr, vis_model, total, yes):
 
     return demonstrations, total, yes, im_features, images
 
-def get_frames(time, k):
+def get_frames(svo_folder, time, k):
     ## Get frames from time
     frames = []
 
     window = []
     for i in range(k, k+5):
-            file_name = "data/" + time + "_" + str(i) + ".png"
+            file_name = svo_folder + "/" + time + "_" + str(i) + ".png"
             frame = cv2.imread(file_name)
             if type(frame) == type(None):
                 break
@@ -182,8 +195,11 @@ def test():
     X_train = get_file_paths(["data/winter"])
     X_test = get_file_paths(["data/autumn"])
 
+
+    ## Set up Unsupervised Perceptual Reward
     R_max = 1600
-    upr = UPR(X_train, n_clusters=3, R_max=R_max)
+    image_folder = "data"
+    upr = UPR(X_train, image_folder, n_clusters=3, R_max=R_max)
 
     # init 3dcnn extraction model
     vis_model = upr.get_visual_model()
@@ -222,7 +238,7 @@ def test():
             time = file.split("/")[2].split(".")[0]
             season = file.split("/")[1]
             a = datetime.datetime.now()
-            data, total, yes, im_feature, images = one_file(file, upr, vis_model, total, yes)
+            data, total, yes, im_feature, images = one_file(file, "data", upr, vis_model, total, yes)
             b = datetime.datetime.now()
             c = b-a
             times.append(c.seconds)
@@ -243,11 +259,10 @@ def test():
                 plt.close()
 
         accuracy = yes/total
-        columns = ["Terminal State Classification Accuracy"]
-        cell_text = [[accuracy]]
-        plt.table(cellText=cell_text, colLabels=columns, loc='bottom')
+        print("Terminal State Classification Accuracy")
         pdf.savefig(fig, bbox_inches='tight')
         print(accuracy)
+        print("Runtime")
         run_time = np.mean(np.array(times))
         print(run_time)
         plt.close()
