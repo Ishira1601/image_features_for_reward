@@ -43,12 +43,14 @@ class UPR:
         self.T = 0
         self.start = 5
         self.X_n = []
-        self.load_data()
+        self.winter_max = 12700  # number to divide to normalize winter workdone
+        self.autumn_max = 6700  # n number to divide by to normalize autumn workdone
+        self.load_data()  # Get Load expert data
         self.terminal_state_classifier()
         self.the_stages = []
         self.n_clusters = n_clusters
-        self.stages()
-        self.step_classifier()
+        self.stages() # Calculate mu and sigma for stages
+        self.step_classifier() # Fit Stage Classifier
 
 
 
@@ -57,19 +59,16 @@ class UPR:
         n = 0
         k = 0
         y = []
-        times = []
+
         for file in self.files:
             i = 0
             depth = self.read_depth(file)
             observations = []
             all_data = []
             season = file.split("/")[1]
-            work_done = 0
-            workdone_x = 0
-            workdone_y = 0
+            prev_work_done = 0
             a_A = 0.0020
             a_B = 0.0012
-            alpha = (20 / 180) * 3.142
             l = 1.5
             a = 0.0016
             prev_boom = 0
@@ -99,32 +98,13 @@ class UPR:
                             prev_depth = depth[i]
                             l = float(row[3])
 
-                        F = a_A * P_A - a_B * P_B
-                        if i < self.start+1:
-                            F0 = F
-                        F -= F0
-                        F_C = F * np.array([np.cos(boom), np.sin(boom)])
-                        if season == "winter":
-                            F_C /= 12700
-                        elif season == "autumn":
-                            F_C /= 6700
-                        boom_dot = (boom - prev_boom) * 15
-                        prev_boom = boom
-                        v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
-                        work_done += abs(np.dot(F_C, v_C)) / 15
-                        workdone_x += abs(F_C[0] * v_C[0]) / 15
-                        workdone_y += abs(F_C[1] * v_C[1]) / 15
-                        F_Re = np.linalg.norm(F_C)
-                        v_Re = np.linalg.norm(v_C)
+                        sensor_values = [P_A, P_B, boom, bucket, vx, l]
+                        features, F0 = self.get_feature_vector(sensor_values, season, depth[i],
+                                                               i, prev_boom, prev_work_done, F0)
 
-                        observation = [k,
-                           work_done, boom, bucket, depth[i]]
+                        observation = [k] + features
                         n = len(observation)
-                        # summed += np.array(observation)
-                        # if i%5 == 0:
-                        #     averaged = list(summed/5)
-                        #
-                        #     summed = 0(
+                        prev_work_done, prev_boom, prev_bucket, prev_distance = features
                         observations.append(observation)
                         y.append(float(row[82]))
                     i += 1
@@ -166,13 +146,26 @@ class UPR:
 
         return depth
 
-    def get_distance_travelled(self, file):
-        with open(file) as csv_file:
-            csv_reader = csv.reader(csv_file, delimiter=',')
-            distance = [0.0]
-            for row in csv_reader:
-                distance.append(distance[-1]+float(row[62]))
-        return distance
+    def get_feature_vector(self, sensor_values, season, distance, i, prev_boom, work_done, F0, a_A=0.0020, a_B=0.0012,
+                           a=0.0016):
+        P_A, P_B, boom, bucket, vx, l = sensor_values
+        F = a_A * P_A - a_B * P_B
+        if i < self.start + 1:
+            F0 = F
+        F -= F0
+        F_C = F * np.array([np.cos(boom), np.sin(boom)])
+        if season == "winter":
+            F_C /= self.winter_max
+        elif season == "autumn":
+            F_C /= self.autumn_max
+        boom_dot = (boom - prev_boom) * 15
+
+        v_C = np.array([vx - l * boom_dot * np.sin(boom) + a, l * boom_dot * np.cos(boom) + a])
+        work_done += abs(np.dot(F_C, v_C)) / 15
+
+        observation = [work_done, boom, bucket, distance]
+
+        return observation, F0
 
     def get_visual_model(self):
         nb_classes = 2
@@ -263,80 +256,8 @@ class UPR:
                 j+=1
             k+=1
         self.image_features = X
-        self.clf_binary = classifiers[1]
+        self.clf_binary = classifiers[3]
         self.clf_binary.fit(X, y)
-
-    def plot_data(self, data, main_title="Training", title="", cluster_centers=np.zeros((1)), js=[]):
-        row = 3
-        col = 3
-        plt.subplot(row, col, 1)
-        plt.title(main_title)
-        plt.plot(data[:, 0], 'b')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 0], 'r*')
-        plt.ylabel('Work done')
-
-        plt.subplot(row, col, 2)
-        plt.title(title)
-        plt.plot(data[:, 1], 'b')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 1], 'r*')
-        plt.ylabel('Workdone_x')
-
-        plt.subplot(row, col, 3)
-        plt.plot(data[:, 2], 'b')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 2], 'r*')
-        plt.ylabel('Workdone_y')
-
-        plt.subplot(row, col, 4)
-        plt.plot(data[:, 3], 'm')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 3], 'r*')
-        plt.ylabel('Boom Angle')
-
-        plt.subplot(row, col, 5)
-        plt.plot(data[:, 4], 'm')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 4], 'r*')
-        plt.ylabel('Bucket angle')
-
-        plt.subplot(row, col, 6)
-        plt.plot(data[:, 5], 'g')
-        if cluster_centers.any():
-            plt.plot(js, cluster_centers[:, 5], 'r*')
-        plt.ylabel('Distance to pile')
-
-
-        plt.subplot(row, col, 7)
-        plt.plot(data[:, -1])
-        plt.ylabel('segment')
-
-        plt.xlabel('time')
-        plt.show()
-
-    def plot_all(self, all_data, file):
-        plt.suptitle(file)
-        all_data = np.array(all_data)
-        for i in range(30):
-            plt.subplot(5, 6, i+1)
-            plt.title(i)
-            plt.plot(all_data[:, i])
-        plt.show()
-        plt.figure()
-        plt.suptitle(file)
-        for i in range(30):
-            plt.subplot(5, 6, i + 1)
-            plt.title(i+30)
-            plt.plot(all_data[:, i+30])
-        plt.show()
-        plt.figure()
-        plt.suptitle(file)
-        for i in range(20):
-            plt.subplot(4, 5, i + 1)
-            plt.title(i+60)
-            plt.plot(all_data[:, i+60])
-        plt.show()
 
     def stages(self):
         # cluster_centers, js = self.set_cluster_centers()
@@ -354,20 +275,8 @@ class UPR:
         # clusters = AgglomerativeClustering(n_clusters=self.n_clusters).fit(self.X)
         n = self.X.shape[0]
         self.y = clusters.labels_
-        # self.X = np.vstack((self.X, self.x))
-        # n_x = self.x.shape[0]
-        # y_x = 3 * np.ones((n_x), dtype=int)
-        # self.y = np.hstack((self.y, y_x))
         y = np.array(self.y).reshape((n, 1))
-        # a = 0
-        # for i in range(len(self.data)):
-        #     b = a + len(self.data[i])
-        #     only_data = np.array(self.data[i])
-        #     only_labels = y[a:b, :]
-        #     data = np.hstack((only_data, only_labels))
-        #     data = np.delete(data, 0, 1)
-        #     self.plot_data(data, "Training", self.files[i])
-        #     a = b
+
         self.to_stages(self.y)
 
     def set_cluster_centers(self):
@@ -416,7 +325,7 @@ class UPR:
         self.clf = KNeighborsClassifier()
         self.clf.fit(self.X, self.y)
 
-    def get_intermediate_reward(self, state, im_feature):
+    def get_reward(self, state, im_feature):
         n = state.shape[1]
         segment = self.clf.predict(state)[0]
         terminal = int(self.clf_binary.predict([im_feature[0]])[0])
@@ -434,17 +343,15 @@ class UPR:
                 continue
         # reward_t = n/summed
         reward_t = self.R_max - summed
-        return reward_t, segment, terminal
+        reward = self.combine_reward(reward_t, segment)
+        return reward, segment, terminal
 
     def combine_reward(self, reward_i, segment):
-        # if (time>300):
-        #     self.reward -= time*100
         if segment>0:
-            # self.reward += reward_i*pow(2, segment-1)
-            self.reward = reward_i * pow(2, segment)
+            reward = reward_i * pow(2, segment)
         else:
-            self.reward = reward_i * np.sqrt(2)
-
+            reward = reward_i * np.sqrt(2)
+        return reward
 
 
 
