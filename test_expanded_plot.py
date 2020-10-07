@@ -145,7 +145,7 @@ def one_file(file, upr, vis_model, total, yes):
 
                 total += 1
             i += 1
-
+    to_csv(demonstrations, time, images)
     demonstrations = np.array(demonstrations)
     im_features = np.array(im_features)
 
@@ -247,7 +247,7 @@ def plot_image_vector(im_feature, time):
     return p
 
 def plot_data(data, labels, p):
-    fontsize = {"fontsize":9}
+    fontsize = {"fontsize":11}
     n = data.shape[0]
     time = np.arange(0, n)/15
 
@@ -291,7 +291,21 @@ def plot_data(data, labels, p):
     plt.tick_params(labelbottom=True)
     plt.xlabel("time / s", **fontsize)
 
+def to_csv(observations, time, images):
+    import csv
+    with open('data_test_winter/'+time+'.csv', 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile, delimiter=',',
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for observation in observations:
+            csv_writer.writerow(observation)
 
+    with open('data_image/'+time+'.csv', 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile, delimiter=',',
+                                quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for image in images:
+            image = np.ravel(image)
+            image = list(image)
+            csv_writer.writerow(image)
 def test():
     # init 3dcnn extraction model
     vis_model = get_visual_model()
@@ -299,11 +313,11 @@ def test():
     fontsize = {"fontsize":"x-large"}
 
     file_paths = get_file_paths(["data/winter", "data/autumn"])
-    X_train, X_test = training_test_split(file_paths)
+    # X_train, X_test = training_test_split(file_paths)
     R_max = 1600
 
-    # X_train = get_file_paths(["data/autumn"])
-    # X_test = get_file_paths(["data/winter"])
+    X_train = get_file_paths(["data/autumn"])
+    X_test = get_file_paths(["data/winter"])
 
     # X_train = get_file_paths(["data/winter"])
     # X_test = get_file_paths(["data/autumn"])
@@ -329,24 +343,25 @@ def test():
         season = file.split("/")[1]
         a = datetime.datetime.now()
         data, total, yes, im_feature, images = one_file(file, upr, vis_model, total, yes)
-        b = datetime.datetime.now()
-        c = b-a
-        times.append(c.seconds)
-        plot_image(images, time)
 
-        p = plot_image_vector(im_feature, time)
-
-        plot_data(data, labels, p)
-
-        m += 1
-
-        plt.tight_layout()
-        title = season + " - " + time
-        # fig.suptitle(title, fontsize=16, x=0.2)
-
-        if m!=(len(X_test)-1):
-            plt.show()
-            plt.close()
+        # b = datetime.datetime.now()
+        # c = b-a
+        # times.append(c.seconds)
+        # plot_image(images, time)
+        #
+        # p = plot_image_vector(im_feature, time)
+        #
+        # plot_data(data, labels, p)
+        #
+        # m += 1
+        #
+        # plt.tight_layout()
+        # title = season + " - " + time
+        # # fig.suptitle(title, fontsize=16, x=0.2)
+        #
+        # if m!=(len(X_test)-1):
+        #     plt.show()
+        #     plt.close()
 
     accuracy = yes/total
     print("Terminal State Classification Accuracy")
