@@ -213,14 +213,15 @@ def plot_image(images, time):
     k = 0
     p = 0
     fontsize = {"fontsize": 11}
-    while k < len(images) and p<8:
-        plt.subplot2grid((11, 8), (0, p), rowspan=2)
+    while k < len(images) and p<32:
+        plt.subplot2grid((51, 32), (0, p), rowspan=8, colspan=4)
+        # images[k] = cv2.resize(images[k], (448, 448))
         plt.imshow(images[k])
         plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
         plt.title(time, color="w")
         if p == 0:
             plt.ylabel("Camera Feed", **fontsize)
-        p += 1
+        p += 4
         k += 40
 
 def plot_image_vector(im_feature, time):
@@ -234,24 +235,24 @@ def plot_image_vector(im_feature, time):
     p = 0
 
     q = 0
-    while q < im_feature.shape[0] and p < 8:
+    while q < im_feature.shape[0] and p < 32:
         gray_frame = im_feature[q, :].reshape((8, 1))
         q += 40
-        plt.subplot2grid((11, 8), (2, p), rowspan=2)
+        plt.subplot2grid((51, 32), (8, p), rowspan=8, colspan=4)
         plt.imshow(gray_frame, cmap='gray', vmin=0, vmax=255)
         plt.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
         if p == 0:
             plt.ylabel("Image-vectors", **fontsize)
-        p += 1
+        p += 4
     return p
 
 def plot_data(data, labels, p):
-    fontsize = {"fontsize":8}
+    fontsize = {"fontsize":9}
     n = data.shape[0]
     time = np.arange(0, n)/15
 
     for v in range(4):
-        plt.subplot2grid((11, 8), (v+4, 0), colspan=p)
+        plt.subplot2grid((51, 32), (5*v+16, 0), colspan=p, rowspan=5)
         colour = "b-"
         data_to_plot = data[:, v]
         if (v == 1 or v == 2):
@@ -264,7 +265,7 @@ def plot_data(data, labels, p):
         plt.tick_params(labelbottom=False)
         plt.grid(axis='x')
 
-    plt.subplot2grid((11, 8), (8, 0), colspan=p)
+    plt.subplot2grid((51, 32), (36, 0), colspan=p, rowspan=5)
     for i in range(12, 14):
         data_to_plot = data[:, i]
         plt.plot(time, data_to_plot, label=labels[i - 8])
@@ -273,18 +274,18 @@ def plot_data(data, labels, p):
     plt.grid(axis='x')
     plt.legend(**fontsize, loc='lower-left')
 
-    for v in range(9,11):
-        plt.subplot2grid((11, 8), (v, 0), colspan=p)
+    for v in range(14, 16):
+        plt.subplot2grid((51, 32), (5*v-29, 0), colspan=p, rowspan=5)
         colour = "b-"
-        if (v == 10):
+        if (v == 15):
             colour = "r-"
-        data_to_plot = data[:, v+5]
+        data_to_plot = data[:, v]
         plt.plot(time, data_to_plot, colour)
-        if v==9:
+        if v==14:
             plt.tick_params(labelbottom=False)
         plt.grid(axis='x')
 
-        plt.ylabel(labels[v-3], **fontsize)
+        plt.ylabel(labels[v-8], **fontsize)
 
     fontsize = {"fontsize": 11}
     plt.tick_params(labelbottom=True)
@@ -322,7 +323,7 @@ def test():
     for file in X_test:
 
         plt.rc('text', usetex=False)
-        fig = plt.figure(figsize=(8, 11))
+        fig = plt.figure(figsize=(32, 51))
         # plt.title(file.split('/')[2], **fontsize)
         time = file.split("/")[2].split(".")[0]
         season = file.split("/")[1]
