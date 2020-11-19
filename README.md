@@ -33,11 +33,11 @@ upr = UPR(X_train, image_folder, n_clusters=3, R_max=R_max)`
 
 # To calculate reward and obtain task completion state
 `reward, segment, terminal = upr.get_reward(observation, im_feature)`
-reward: the reward for the observation
-segment: stage for the observation
-terminal: (0/1) is the task completed
-observation: feature vector containing [workdone, boom angle, bucket angle, distance to the pile]
-im_feature: ndarray containing 8 image features
+- reward: the reward for the observation
+- segment: stage for the observation
+- terminal: (0/1) is the task completed
+- observation: feature vector containing [workdone, boom angle, bucket angle, distance to the pile]
+- im_feature: ndarray containing 8 image features
 
 ## To run one file
 `data, total, yes, im_feature, images = one_file(file, image_folder, upr, vis_model, total, yes)`
